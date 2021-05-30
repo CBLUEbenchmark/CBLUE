@@ -1,3 +1,4 @@
 .idea
-*/__pycache__
+cblue/__pycache__/
+cblue/data/__pycache__/
 data/model_data/
