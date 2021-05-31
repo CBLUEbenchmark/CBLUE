@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 DATA_DIR="CBLUEDatasets"
 
-TASK_NAME="qic"
+TASK_NAME="ctc"
 MODEL_TYPE="bert"
 MODEL_DIR="data/model_data"
 MODEL_NAME="chinese-bert-wwm"
