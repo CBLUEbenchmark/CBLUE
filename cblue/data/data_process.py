@@ -18,17 +18,18 @@ class EEDataProcessor(object):
         self.label2id = None
         self.id2label = None
         self._get_labels()
+        self.num_labels = len(self.label2id.keys())
 
         self.is_lower = is_lower
         self.no_entity_label = no_entity_label
 
-    def get_train_samples(self):
+    def get_train_sample(self):
         return self._pre_process(self.train_path, is_predict=False)
 
-    def get_dev_samples(self):
+    def get_dev_sample(self):
         return self._pre_process(self.dev_path, is_predict=False)
 
-    def get_test_samples(self):
+    def get_test_sample(self):
         return self._pre_process(self.test_path, is_predict=True)
 
     def _get_labels(self):
@@ -90,15 +91,16 @@ class REDataProcessor(object):
         self.id2predicate = None
         self.s_entity_type = None
         self.o_entity_type = None
+        self.num_labels = len(self.predicate2id.keys())
         self._load_schema()
 
-    def get_train_samples(self):
+    def get_train_sample(self):
         return self._pre_process(self.train_path)
 
-    def get_dev_samples(self):
+    def get_dev_sample(self):
         return self._pre_process(self.dev_path)
 
-    def get_test_samples(self, path):
+    def get_test_sample(self, path):
         """ Need new test file generated from the result of ER prediction
         """
         return self._pre_process(path)
@@ -192,13 +194,13 @@ class ERDataProcessor(object):
         self.dev_path = os.path.join(self.task_data_dir, 'CMeIE_dev.json')
         self.test_path = os.path.join(self.task_data_dir, 'CMeIE_test.json')
 
-    def get_train_samples(self):
+    def get_train_sample(self):
         return self._pre_process(self.train_path, is_predict=False)
 
-    def get_dev_samples(self):
+    def get_dev_sample(self):
         return self._pre_process(self.dev_path, is_predict=False)
 
-    def get_test_samples(self):
+    def get_test_sample(self):
         return self._pre_process(self.test_path, is_predict=True)
 
     def _pre_process(self, path, is_predict=False):
@@ -250,7 +252,7 @@ class CDNDataProcessor(object):
         self.recall_k = recall_k
         self.negative_sample = negative_sample
 
-    def get_train_samples(self, dtype='cls', do_augment=1):
+    def get_train_sample(self, dtype='cls', do_augment=1):
         """
         do_augment: data augment
         """
@@ -261,7 +263,7 @@ class CDNDataProcessor(object):
             outputs = self._get_num_samples(orig_sample=samples, is_predict=False)
         return outputs
 
-    def get_dev_samples(self, dtype='cls'):
+    def get_dev_sample(self, dtype='cls'):
         samples = self._pre_process(self.dev_path, is_predict=False)
         if dtype == 'cls':
             outputs = self._get_cls_samples(orig_samples=samples, is_predict=False)
@@ -269,7 +271,7 @@ class CDNDataProcessor(object):
             outputs = self._get_num_samples(orig_sample=samples, is_predict=False)
         return outputs, samples
 
-    def get_test_samples(self, dtype='cls'):
+    def get_test_sample(self, dtype='cls'):
         samples = self._pre_process(self.test_path, is_predict=True)
         if dtype == 'cls':
             outputs = self._get_cls_samples(orig_samples=samples, is_predict=True)
@@ -425,14 +427,15 @@ class CTCDataProcessor(object):
         self.label_list = self._get_labels()
         self.label2id = {label: idx for idx, label in enumerate(self.label_list)}
         self.id2label = {idx: label for idx, label in enumerate(self.label_list)}
+        self.num_labels = len(self.label_list)
 
-    def get_train_samples(self):
+    def get_train_sample(self):
         return self._pre_process(self.train_path, is_predict=False)
 
-    def get_dev_samples(self):
+    def get_dev_sample(self):
         return self._pre_process(self.dev_path, is_predict=False)
 
-    def get_test_samples(self):
+    def get_test_sample(self):
         return self._pre_process(self.test_path, is_predict=True)
 
     def _pre_process(self, path, is_predict=False):
@@ -460,6 +463,7 @@ class STSDataProcessor(object):
 
         self.label2id = {'0': 0, '1': 1}
         self.id2label = {0: '0', 1: '1'}
+        self.num_labels = 2
 
     def get_train_sample(self):
         return self._pre_process(self.train_path, is_predict=False)
@@ -488,8 +492,9 @@ class QQRDataProcessor(object):
         self.dev_path = os.path.join(self.task_data_dir, 'KUAKE-QQR_dev.json')
         self.test_path = os.path.join(self.task_data_dir, 'KUAKE-QQR_test.json')
 
-        self.label2id = {'0': 0, '1': 1, '2': 2}
+        self.label2id = {'0': 0, '1': 1, '2': 2, 'NA': 0}
         self.id2label = {0: '0', 1: '1', 2: '2'}
+        self.num_labels = 3
 
     def get_train_sample(self):
         return self._pre_process(self.train_path, is_predict=False)
@@ -522,6 +527,7 @@ class QICDataProcessor(object):
                            '其他', '注意事项', '病因分析', '就医建议', '后果表述']
         self.label2id = {label: idx for idx, label in enumerate(self.label_list)}
         self.id2label = {idx: label for idx, label in enumerate(self.label_list)}
+        self.num_labels = len(self.label_list)
 
     def get_train_sample(self):
         return self._pre_process(self.train_path, is_predict=False)
@@ -551,6 +557,7 @@ class QTRDataProcessor(object):
 
         self.label2id = {'0': 0, '1': 1, '2': 2, '3': 3}
         self.id2label = {0: '0', 1: '1', 2: '2', 3: '3'}
+        self.num_labels = 4
 
     def get_train_sample(self):
         return self._pre_process(self.train_path, is_predict=False)

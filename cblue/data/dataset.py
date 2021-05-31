@@ -68,7 +68,7 @@ class REDataset(Dataset):
     def __getitem__(self, idx):
         text, flag = self.texts[idx], self.flags[idx]
         inputs = self.tokenizer(text, max_length=self.max_length, padding='max_length',
-                                truncation=True)
+                                truncation=True, add_special_tokens=False)
         input_ids, token_type_ids, attention_mask = inputs['input_ids'], inputs['token_type_ids'], \
                                                     inputs['attention_mask']
         s_encode = self.tokenizer.encode(flag[0])
@@ -116,7 +116,7 @@ class ERDataset(Dataset):
     def __getitem__(self, idx):
         text = self.texts[idx]
         inputs = self.tokenizer(text, max_length=self.max_length, padding="max_length",
-                                truncation=True)
+                                truncation=True, add_special_tokens=False)
         input_ids, token_type_ids, attention_mask = inputs['input_ids'], inputs['token_type_ids'], \
                                                     inputs['attention_mask']
         if self.mode != "test":

@@ -4,6 +4,7 @@ import random
 import torch
 import time
 import numpy as np
+import logging
 
 
 def load_json(input_file):
@@ -109,36 +110,17 @@ def seed_everything(seed):
     torch.backends.cudnn.deterministic = True
 
 
-# class EarlyStopper(object):
-#     def __init__(self, patience, logger):
-#         self.patience = patience
-#         self.counter = 0
-#         self.best_score = None
-#         self.best_step = None
-#         self.early_stop = False
-#         self.logger = logger
-#
-#     def step(self, score, model, args, tokenizer, global_step):
-#         if self.best_score is None:
-#             self.best_score = score
-#             self.best_step = global_step
-#             self.save(model, args, tokenizer, global_step)
-#         elif score > self.best_score:
-#             self.best_score = score
-#             self.best_step = global_step
-#             self.save(model, args, tokenizer, global_step)
-#             self.counter = 0
-#         else:
-#             self.counter += 1
-#             self.logger.info("Earlystopper counter: %s out of %s", self.counter, self.patience)
-#             if self.counter >= self.patience:
-#                 self.early_stop = True
-#
-#     def save(self, model, args, tokenizer, global_step):
-#         output_dir = os.path.join(args.output_dir, 'checkpoint-{}'.format(global_step))
-#         if not os.path.exists(output_dir):
-#             os.makedirs(output_dir)
-#         model.save_pretrained(output_dir)
-#         torch.save(args, os.path.join(output_dir, 'training_args.bin'))
-#         self.logger.info("Saving model checkpoint to %s", output_dir)
-#         tokenizer.save_vocabulary(save_directory=output_dir)
+def init_logger(log_file=None, log_file_level=logging.NOTSET):
+    log_format = logging.Formatter(fmt='%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
+                                   datefmt='%m/%d/%Y %H:%M:%S')
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(log_format)
+    logger.handlers = [console_handler]
+    if log_file and log_file != '':
+        file_handler = logging.FileHandler(log_file)
+        file_handler.setLevel(log_file_level)
+        logger.addHandler(file_handler)
+    return logger
+
