@@ -36,6 +36,8 @@ def main():
                         help="Whether to run training.")
     parser.add_argument("--do_predict", action='store_true',
                         help="Whether to run the models in inference mode on the test set.")
+    parser.add_argument("--result_output_dir", default=None, type=str, required=True,
+                        help="the directory of commit result to be saved")
 
     # models param
     parser.add_argument("--max_length", default=128, type=int,
@@ -89,22 +91,35 @@ def main():
     tokenizer_class, model_class = MODEL_CLASS[args.model_type]
 
     if args.do_train:
-        logger.info('Training ER model...')
-        tokenizer = tokenizer_class.from_pretrained(os.path.join(args.model_dir, args.model_name))
-        data_processor = ERDataProcessor(root=args.data_dir)
-        train_samples = data_processor.get_train_sample()
-        eval_samples = data_processor.get_dev_sample()
-        train_dataset = ERDataset(train_samples, data_processor, tokenizer=tokenizer, mode='train')
-        eval_dataset = ERDataset(eval_samples, data_processor, tokenizer=tokenizer, mode='eval')
-
-        model = ERModel(model_class, encoder_path=os.path.join(args.model_dir, args.model_name))
-        trainer = ERTrainer(args=args, model=model, data_processor=data_processor,
-                            tokenizer=tokenizer, train_dataset=train_dataset, eval_dataset=eval_dataset,
-                            logger=logger)
-
-        global_step, best_step = trainer.train()
+        # logger.info('Training ER model...')
+        # tokenizer = tokenizer_class.from_pretrained(os.path.join(args.model_dir, args.model_name))
+        # data_processor = ERDataProcessor(root=args.data_dir)
+        # train_samples = data_processor.get_train_sample()
+        # eval_samples = data_processor.get_dev_sample()
+        # train_dataset = ERDataset(train_samples, data_processor, tokenizer=tokenizer, mode='train')
+        # eval_dataset = ERDataset(eval_samples, data_processor, tokenizer=tokenizer, mode='eval')
+        #
+        # model = ERModel(model_class, encoder_path=os.path.join(args.model_dir, args.model_name))
+        # trainer = ERTrainer(args=args, model=model, data_processor=data_processor,
+        #                     tokenizer=tokenizer, train_dataset=train_dataset, eval_dataset=eval_dataset,
+        #                     logger=logger, model_class=ERModel)
+        #
+        # global_step, best_step = trainer.train()
+        #
+        # # **** save best model *****
+        # model = ERModel(model_class, encoder_path=os.path.join(args.output_dir, f'checkpoint-{best_step}'))
+        # model.load_state_dict(torch.load(os.path.join(args.output_dir, f'checkpoint-{best_step}', 'pytorch_model.pt')))
+        # tokenizer = tokenizer_class.from_pretrained(os.path.join(args.output_dir, f'checkpoint-{best_step}'))
+        # torch.save(model.state_dict(), os.path.join(args.output_dir, 'pytorch_model_er.pt'))
+        # if not os.path.exists(os.path.join(args.output_dir, 'er')):
+        #     os.mkdir(os.path.join(args.output_dir, 'er'))
+        # model.encoder.save_pretrained(os.path.join(args.output_dir, 'er'))
+        # tokenizer.save_vocabulary(save_directory=os.path.join(args.output_dir, 'er'))
+        # logger.info('Saving models checkpoint to %s', os.path.join(args.output_dir, 'er'))
 
         logger.info('Training RE model...')
+        tokenizer = tokenizer_class.from_pretrained(os.path.join(args.model_dir, args.model_name))
+        tokenizer.add_special_tokens({'additional_special_tokens': ['<s>', '</s>', '<o>', '</o>']})
         data_processor = REDataProcessor(root=args.data_dir)
         train_samples = data_processor.get_train_sample()
         eval_samples = data_processor.get_dev_sample()
@@ -115,9 +130,45 @@ def main():
                         num_labels=data_processor.num_labels)
         trainer = RETrainer(args=args, model=model, data_processor=data_processor,
                             tokenizer=tokenizer, train_dataset=train_dataset, eval_dataset=eval_dataset,
-                            logger=logger)
+                            logger=logger, model_class=REModel)
 
         global_step, best_step = trainer.train()
+
+        # **** save best model *****
+        model = REModel(tokenizer, model_class, encoder_path=os.path.join(args.output_dir, f'checkpoint-{best_step}'),
+                        num_labels=data_processor.num_labels)
+        model.load_state_dict(torch.load(os.path.join(args.output_dir, f'checkpoint-{best_step}', 'pytorch_model.pt')))
+        tokenizer = tokenizer_class.from_pretrained(os.path.join(args.output_dir, f'checkpoint-{best_step}'))
+        torch.save(model.state_dict(), os.path.join(args.output_dir, 'pytorch_model_re.pt'))
+        if not os.path.exists(os.path.join(args.output_dir, 're')):
+            os.mkdir(os.path.join(args.output_dir, 're'))
+        model.encoder.save_pretrained(os.path.join(args.output_dir, 're'))
+        tokenizer.save_vocabulary(save_directory=os.path.join(args.output_dir, 're'))
+        logger.info('Saving models checkpoint to %s', os.path.join(args.output_dir, 're'))
+
+    if args.do_predict:
+        tokenizer = tokenizer_class.from_pretrained(os.path.join(args.output_dir, 'er'))
+        data_processor = ERDataProcessor(root=args.data_dir)
+        test_samples = data_processor.get_test_sample()
+        test_dataset = ERDataset(test_samples, data_processor=data_processor, tokenizer=tokenizer,
+                                 mode='test')
+        model = ERModel(model_class, encoder_path=os.path.join(args.output_dir, 'er'))
+        model.load_state_dict(torch.load(os.path.join(args.output_dir, 'pytorch_model_er.pt')))
+        trainer = ERTrainer(args=args, model=model, data_processor=data_processor,
+                            tokenizer=tokenizer, logger=logger, model_class=ERModel)
+
+        trainer.predict(test_dataset, model)
+
+        tokenizer = tokenizer_class.from_pretrained(os.path.join(args.output_dir, 're'))
+        tokenizer.add_special_tokens({'additional_special_tokens': ['<s>', '</s>', '<o>', '</o>']})
+        data_processor = REDataProcessor(root=args.data_dir)
+        test_samples = data_processor.get_test_sample(os.path.join(args.output_dir, 'CMeIE_test.json'))
+        model = REModel(tokenizer, model_class, os.path.join(args.output_dir, 're'),
+                        num_labels=data_processor.num_labels)
+        model.load_state_dict(torch.load(os.path.join(args.output_dir, 'pytorch_model_re.pt')))
+        trainer = RETrainer(args=args, model=model, data_processor=data_processor,
+                            tokenizer=tokenizer, logger=logger, model_class=REModel)
+        trainer.predict(test_samples=test_samples, model=model, re_dataset_class=REDataset)
 
 
 if __name__ == '__main__':

@@ -3,18 +3,25 @@ import sys
 sys.path.append('.')
 import argparse
 import torch
-from transformers import BertTokenizer, BertModel, AlbertModel
+from transformers import BertTokenizer, BertModel, AlbertModel, BertForSequenceClassification, \
+    AlbertForSequenceClassification
 
-from cblue.models import ERModel, REModel
-from cblue.trainer import ERTrainer, RETrainer
+from cblue.models import CDNForCLSModel
+from cblue.trainer import CDNForCLSTrainer, CDNForNUMTrainer
 from cblue.utils import init_logger, seed_everything
-from cblue.data import ERDataset, ERDataProcessor, REDataset, REDataProcessor
+from cblue.data import CDNDataset, CDNDataProcessor
 
 
 MODEL_CLASS = {
     'bert': (BertTokenizer, BertModel),
     'roberta': (BertTokenizer, BertModel),
     'albert': (BertTokenizer, AlbertModel)
+}
+
+CLS_MODEL_CLASS = {
+    'bert': BertForSequenceClassification,
+    'roberta': BertForSequenceClassification,
+    'albert': AlbertForSequenceClassification
 }
 
 
@@ -36,6 +43,16 @@ def main():
                         help="Whether to run training.")
     parser.add_argument("--do_predict", action='store_true',
                         help="Whether to run the models in inference mode on the test set.")
+    parser.add_argument("--result_output_dir", default=None, type=str, required=True,
+                        help="the directory of commit result to be saved")
+
+    # For CDN task
+    parser.add_argument("--recall_k", default=200, type=int,
+                        help="the number of samples to be recalled.")
+    parser.add_argument("--num_neg", default=3, type=int,
+                        help="the number of negative samples to be sampled")
+    parser.add_argument("--do_aug", default=1, type=int,
+                        help="whether do data augment.")
 
     # models param
     parser.add_argument("--max_length", default=128, type=int,
@@ -89,34 +106,61 @@ def main():
     tokenizer_class, model_class = MODEL_CLASS[args.model_type]
 
     if args.do_train:
-        logger.info('Training ER model...')
+        # logger.info('Training CLS model...')
         tokenizer = tokenizer_class.from_pretrained(os.path.join(args.model_dir, args.model_name))
-        data_processor = ERDataProcessor(root=args.data_dir)
-        train_samples = data_processor.get_train_sample()
-        eval_samples = data_processor.get_dev_sample()
-        train_dataset = ERDataset(train_samples, data_processor, tokenizer=tokenizer, mode='train')
-        eval_dataset = ERDataset(eval_samples, data_processor, tokenizer=tokenizer, mode='eval')
+        data_processor = CDNDataProcessor(root=args.data_dir, recall_k=args.recall_k,
+                                          negative_sample=args.num_neg)
+        train_samples, recall_orig_train_samples = data_processor.get_train_sample(dtype='cls', do_augment=args.do_aug)
+        eval_samples, recall_orig_eval_samples = data_processor.get_dev_sample(dtype='cls')
+        if data_processor.recall:
+            logger.info('first recall score: %s', data_processor.recall)
 
-        model = ERModel(model_class, encoder_path=os.path.join(args.model_dir, args.model_name))
-        trainer = ERTrainer(args=args, model=model, data_processor=data_processor,
-                            tokenizer=tokenizer, train_dataset=train_dataset, eval_dataset=eval_dataset,
-                            logger=logger)
+        train_dataset = CDNDataset(train_samples, data_processor, dtype='cls', mode='train')
+        eval_dataset = CDNDataset(eval_samples, data_processor, dtype='cls', mode='eval')
 
-        global_step, best_step = trainer.train()
-
-        logger.info('Training RE model...')
-        data_processor = REDataProcessor(root=args.data_dir)
-        train_samples = data_processor.get_train_sample()
-        eval_samples = data_processor.get_dev_sample()
-        train_dataset = REDataset(train_samples, data_processor, tokenizer, mode='train')
-        eval_dataset = REDataset(eval_samples, data_processor, tokenizer, mode='eval')
-
-        model = REModel(tokenizer, model_class, os.path.join(args.model_dir, args.model_name))
-        trainer = RETrainer(args=args, model=model, data_processor=data_processor,
-                            tokenizer=tokenizer, train_dataset=train_dataset, eval_dataset=eval_dataset,
-                            logger=logger)
+        # model = CDNForCLSModel(model_class, encoder_path=os.path.join(args.model_dir, args.model_name),
+        #                        num_labels=data_processor.num_labels_cls)
+        cls_model_class = CLS_MODEL_CLASS[args.model_type]
+        model = cls_model_class.from_pretrained(os.path.join(args.model_dir, args.model_name),
+                                                num_labels=data_processor.num_labels_cls)
+        trainer = CDNForCLSTrainer(args=args, model=model, data_processor=data_processor,
+                                   tokenizer=tokenizer, train_dataset=train_dataset, eval_dataset=eval_dataset,
+                                   logger=logger, recall_orig_eval_samples=recall_orig_eval_samples,
+                                   model_class=cls_model_class)
 
         global_step, best_step = trainer.train()
+
+        # logger.info('Training NUM model...')
+        # train_samples = data_processor.get_train_sample(dtype='num', do_augment=1)
+        # eval_samples = data_processor.get_dev_sample(dtype='num')
+        # train_dataset = CDNDataset(train_samples, data_processor, dtype='num', mode='train')
+        # eval_dataset = CDNDataset(eval_samples, data_processor, dtype='num', mode='eval')
+        #
+        # cls_model_class = CLS_MODEL_CLASS[args.model_type]
+        # model = cls_model_class.from_pretrained(os.path.join(args.model_dir, args.model_name),
+        #                                         num_labels=data_processor.num_labels_num)
+        # trainer = CDNForNUMTrainer(args=args, model=model, data_processor=data_processor,
+        #                            tokenizer=tokenizer, train_dataset=train_dataset, eval_dataset=eval_dataset,
+        #                            logger=logger)
+        #
+        # global_step, best_step = trainer.train()
+
+    if args.do_predict:
+        tokenizer = tokenizer_class.from_pretrained(args.output_dir)
+        data_processor = CDNDataProcessor(root=args.data_dir, recall_k=args.recall_k,
+                                          negative_sample=args.num_neg)
+        test_samples, recall_orig_test_samples = data_processor.get_test_sample(dtype='cls')
+
+        test_dataset = CDNDataset(test_samples, data_processor, dtype='cls', mode='test')
+        cls_model_class = CLS_MODEL_CLASS[args.model_type]
+        model = cls_model_class.from_pretrained(os.path.join(args.model_dir, args.model_name),
+                                                num_labels=data_processor.num_labels_cls)
+        trainer = CDNForCLSTrainer(args=args, model=model, data_processor=data_processor,
+                                   tokenizer=tokenizer, logger=logger,
+                                   recall_orig_eval_samples=recall_orig_test_samples,
+                                   model_class=cls_model_class)
+
+        trainer.predict(test_dataset, model)
 
 
 if __name__ == '__main__':

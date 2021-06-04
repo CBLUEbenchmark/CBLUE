@@ -60,6 +60,8 @@ def main():
                         help="Whether to run training.")
     parser.add_argument("--do_predict", action='store_true',
                         help="Whether to run the models in inference mode on the test set.")
+    parser.add_argument("--result_output_dir", default=None, type=str, required=True,
+                        help="the directory of commit result to be saved")
 
     # models param
     parser.add_argument("--max_length", default=128, type=int,
@@ -102,6 +104,9 @@ def main():
     if not os.path.exists(args.output_dir):
         os.mkdir(args.output_dir)
 
+    if not os.path.exists(args.result_output_dir):
+        os.mkdir(args.result_output_dir)
+
     logger = init_logger(os.path.join(args.output_dir, f'{args.task_name}_{args.model_name}.log'))
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     args.device = device
@@ -135,9 +140,24 @@ def main():
 
         trainer = trainer_class(args=args, model=model, data_processor=data_processor,
                                 tokenizer=tokenizer, train_dataset=train_dataset, eval_dataset=eval_dataset,
-                                logger=logger)
+                                logger=logger, model_class=model_class)
 
         global_step, best_step = trainer.train()
+
+    if args.do_predict:
+        tokenizer = tokenizer_class.from_pretrained(args.output_dir)
+        data_processor = data_processor_class(root=args.data_dir)
+        test_samples = data_processor.get_test_sample()
+
+        if args.task_name != 'ee':
+            test_dataset = dataset_class(test_samples, data_processor, mode='test')
+        else:
+            test_dataset = dataset_class(test_samples, data_processor, tokenizer, mode='test')
+
+        model = model_class.from_pretrained(args.output_dir, num_labels=data_processor.num_labels)
+        trainer = trainer_class(args=args, model=model, data_processor=data_processor,
+                                tokenizer=tokenizer, logger=logger, model_class=model_class)
+        trainer.predict(test_dataset=test_dataset, model=model)
 
 
 if __name__ == '__main__':

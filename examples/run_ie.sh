@@ -6,6 +6,7 @@ MODEL_TYPE="bert"
 MODEL_DIR="data/model_data"
 MODEL_NAME="chinese-bert-wwm"
 OUTPUT_DIR="data/output"
+RESULT_OUTPUT_DIR="data/result_output"
 
 MAX_LENGTH=128
 
@@ -19,12 +20,13 @@ if [ $# == 0 ]; then
         --model_name=${MODEL_NAME} \
         --task_name=${TASK_NAME} \
         --output_dir=${OUTPUT_DIR} \
+        --result_output_dir=${RESULT_OUTPUT_DIR} \
         --do_train \
         --max_length=${MAX_LENGTH} \
-        --train_batch_size=16 \
-        --eval_batch_size=16 \
+        --train_batch_size=32 \
+        --eval_batch_size=32 \
         --learning_rate=3e-5 \
-        --epochs=3 \
+        --epochs=7 \
         --warmup_proportion=0.1 \
         --earlystop_patience=3 \
         --logging_steps=200 \
@@ -38,7 +40,8 @@ elif [ $1 == "predict" ]; then
         --model_dir=${MODEL_DIR} \
         --task_name=${TASK_NAME} \
         --output_dir=${OUTPUT_DIR} \
+        --result_output_dir=${RESULT_OUTPUT_DIR} \
         --do_predict \
         --max_length=${MAX_LENGTH} \
-        --eval_batch_size=16
+        --eval_batch_size=32
 fi

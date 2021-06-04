@@ -6,6 +6,7 @@ MODEL_TYPE="bert"
 MODEL_DIR="data/model_data"
 MODEL_NAME="chinese-bert-wwm"
 OUTPUT_DIR="data/output"
+RESULT_OUTPUT_DIR="data/result_output"
 
 MAX_LENGTH=50
 
@@ -19,6 +20,7 @@ if [ $# == 0 ]; then
         --model_name=${MODEL_NAME} \
         --task_name=${TASK_NAME} \
         --output_dir=${OUTPUT_DIR} \
+        --result_output_dir=${RESULT_OUTPUT_DIR} \
         --do_train \
         --max_length=${MAX_LENGTH} \
         --train_batch_size=16 \
@@ -38,7 +40,9 @@ elif [ $1 == "predict" ]; then
         --model_dir=${MODEL_DIR} \
         --task_name=${TASK_NAME} \
         --output_dir=${OUTPUT_DIR} \
+        --result_output_dir=${RESULT_OUTPUT_DIR} \
         --do_predict \
         --max_length=${MAX_LENGTH} \
-        --eval_batch_size=16
+        --eval_batch_size=16 \
+        --seed=2021
 fi
