@@ -2,6 +2,7 @@
 data/model_data/
 **/__pycache__
 data/output/
+data/result_output/
 CBLUEDatasets/CHIP-CDN/
 CBLUEDatasets/CHIP-CTC/
 CBLUEDatasets/CHIP-STS/
