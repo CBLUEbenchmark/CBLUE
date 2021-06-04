@@ -430,6 +430,7 @@ python baselines/run_classifier.py \
 ```python
 from cblue.data import EEDataProcessor, EEDataset
 from cblue.trainer import EETrainer
+from cblue.metrics import ee_metric, ee_commit_prediction
 
 data_processor = EEDataProcessor(root=...)
 # 获取训练样本（已经过数据处理）
@@ -458,6 +459,156 @@ trainer.predict(test_dataset)
 ```python
 from cblue.data import ERDataProcessor, REDataProcessor, REDataset, ERDataset
 from cblue.trainer import ERTrainer, RETrainer
+from cblue.metrics import er_metric, er_commit_prediction, re_metric, re_commit_prediction
 
 # 调用方式同上
 ```
+
+
+
+### 训练参数设置（Training setup）
+
+##### 统一的参数
+
+|       Param       | Value |
+| :---------------: | :---: |
+| warmup_proportion |  0.1  |
+|   weight_decay    | 0.01  |
+|   adam_epsilon    | 1e-8  |
+|   max_grad_norm   |  1.0  |
+
+##### CMeEE
+
+| Model                 | epoch | batch_size | max_length | learning_rate |
+| --------------------- | :---: | :--------: | :--------: | :-----------: |
+| bert-base             |   5   |     32     |    128     |     4e-5      |
+| bert-wwm-ext          |   5   |     32     |    128     |     4e-5      |
+| roberta-wwm-ext       |   5   |     32     |    128     |     4e-5      |
+| roberta-wwm-ext-large |   5   |     12     |     65     |     2e-5      |
+| roberta-large         |   5   |     12     |     65     |     2e-5      |
+| albert-tiny           |  10   |     32     |    128     |     5e-5      |
+| albert-xxlarge        |   5   |     12     |     65     |     1e-5      |
+| PCL-MedBERT           |   5   |     32     |    128     |     4e-5      |
+
+##### CMeIE-ER
+
+| Model                 | epoch | batch_size | max_length | learning_rate |
+| --------------------- | :---: | :--------: | :--------: | :-----------: |
+| bert-base             |   7   |     32     |    128     |     5e-5      |
+| bert-wwm-ext          |   7   |     32     |    128     |     5e-5      |
+| roberta-wwm-ext       |   7   |     32     |    128     |     4e-5      |
+| roberta-wwm-ext-large |   7   |     16     |     80     |     4e-5      |
+| roberta-large         |   7   |     16     |     80     |     2e-5      |
+| albert-tiny           |  10   |     32     |    128     |     4e-5      |
+| albert-xxlarge        |   7   |     16     |     80     |     1e-5      |
+| PCL-MedBERT           |   7   |     32     |    128     |     4e-5      |
+
+##### CMeIE-RE
+
+| Model                 | epoch | batch_size | max_length | learning_rate |
+| --------------------- | :---: | :--------: | :--------: | :-----------: |
+| bert-base             |   8   |     32     |    128     |     5e-5      |
+| bert-wwm-ext          |   8   |     32     |    128     |     5e-5      |
+| roberta-wwm-ext       |   8   |     32     |    128     |     4e-5      |
+| roberta-wwm-ext-large |   8   |     16     |     80     |     4e-5      |
+| roberta-large         |   8   |     16     |     80     |     2e-5      |
+| albert-tiny           |  10   |     32     |    128     |     4e-5      |
+| albert-xxlarge        |   8   |     16     |     80     |     1e-5      |
+| PCL-MedBERT           |   8   |     32     |    128     |     4e-5      |
+
+##### CHIP-CTC
+
+| Model                 | epoch | batch_size | max_length | learning_rate |
+| --------------------- | :---: | :--------: | :--------: | :-----------: |
+| bert-base             |   5   |     32     |    128     |     5e-5      |
+| bert-wwm-ext          |   5   |     32     |    128     |     5e-5      |
+| roberta-wwm-ext       |   5   |     32     |    128     |     4e-5      |
+| roberta-wwm-ext-large |   5   |     20     |     50     |     3e-5      |
+| roberta-large         |   5   |     20     |     50     |     4e-5      |
+| albert-tiny           |  10   |     32     |    128     |     4e-5      |
+| albert-xxlarge        |   5   |     20     |     50     |     1e-5      |
+| PCL-MedBERT           |   5   |     32     |    128     |     4e-5      |
+
+##### CHIP-CDN-cls
+
+| Param               | Value |
+| ------------------- | ----- |
+| recall_k            | 200   |
+| num_negative_sample | 10    |
+
+| Model                 | epoch | batch_size | max_length | learning_rate |
+| --------------------- | :---: | :--------: | :--------: | :-----------: |
+| bert-base             |   3   |     32     |    128     |     4e-5      |
+| bert-wwm-ext          |   3   |     32     |    128     |     5e-5      |
+| roberta-wwm-ext       |   3   |     32     |    128     |     4e-5      |
+| roberta-wwm-ext-large |   3   |     32     |     40     |     4e-5      |
+| roberta-large         |   3   |     32     |     40     |     4e-5      |
+| albert-tiny           |   3   |     32     |    128     |     4e-5      |
+| albert-xxlarge        |   3   |     32     |     40     |     1e-5      |
+| PCL-MedBERT           |   3   |     32     |    128     |     4e-5      |
+
+##### CHIP-CDN-num
+
+| Model                 | epoch | batch_size | max_length | learning_rate |
+| --------------------- | :---: | :--------: | :--------: | :-----------: |
+| bert-base             |  20   |     32     |    128     |     4e-5      |
+| bert-wwm-ext          |  20   |     32     |    128     |     5e-5      |
+| roberta-wwm-ext       |  20   |     32     |    128     |     4e-5      |
+| roberta-wwm-ext-large |  20   |     12     |     40     |     4e-5      |
+| roberta-large         |  20   |     12     |     40     |     4e-5      |
+| albert-tiny           |  20   |     32     |    128     |     4e-5      |
+| albert-xxlarge        |  20   |     12     |     40     |     1e-5      |
+| PCL-MedBERT           |  20   |     32     |    128     |     4e-5      |
+
+##### CHIP-STS
+
+| Model                 | epoch | batch_size | max_length | learning_rate |
+| --------------------- | :---: | :--------: | :--------: | :-----------: |
+| bert-base             |   3   |     16     |     40     |     3e-5      |
+| bert-wwm-ext          |   3   |     16     |     40     |     3e-5      |
+| roberta-wwm-ext       |   3   |     16     |     40     |     4e-5      |
+| roberta-wwm-ext-large |   3   |     16     |     40     |     4e-5      |
+| roberta-large         |   3   |     16     |     40     |     2e-5      |
+| albert-tiny           |   3   |     16     |     40     |     5e-5      |
+| albert-xxlarge        |   3   |     16     |     40     |     1e-5      |
+| PCL-MedBERT           |   3   |     16     |     40     |     2e-5      |
+
+##### KUAKE-QIC
+
+| Model                 | epoch | batch_size | max_length | learning_rate |
+| --------------------- | :---: | :--------: | :--------: | :-----------: |
+| bert-base             |   3   |     16     |     50     |     2e-5      |
+| bert-wwm-ext          |   3   |     16     |     50     |     2e-5      |
+| roberta-wwm-ext       |   3   |     16     |     50     |     2e-5      |
+| roberta-wwm-ext-large |   3   |     16     |     50     |     2e-5      |
+| roberta-large         |   3   |     16     |     50     |     3e-5      |
+| albert-tiny           |   3   |     16     |     50     |     5e-5      |
+| albert-xxlarge        |   3   |     16     |     50     |     1e-5      |
+| PCL-MedBERT           |   3   |     16     |     50     |     2e-5      |
+
+##### KUAKE-QTR
+
+| Model                 | epoch | batch_size | max_length | learning_rate |
+| --------------------- | :---: | :--------: | :--------: | :-----------: |
+| bert-base             |   3   |     16     |     40     |     4e-5      |
+| bert-wwm-ext          |   3   |     16     |     40     |     2e-5      |
+| roberta-wwm-ext       |   3   |     16     |     40     |     3e-5      |
+| roberta-wwm-ext-large |   3   |     16     |     40     |     2e-5      |
+| roberta-large         |   3   |     16     |     40     |     2e-5      |
+| albert-tiny           |   3   |     16     |     40     |     5e-5      |
+| albert-xxlarge        |   3   |     16     |     40     |     1e-5      |
+| PCL-MedBERT           |   3   |     16     |     40     |     3e-5      |
+
+##### KUAKE-QQR
+
+| Model                 | epoch | batch_size | max_length | learning_rate |
+| --------------------- | :---: | :--------: | :--------: | :-----------: |
+| bert-base             |   3   |     16     |     30     |     3e-5      |
+| bert-wwm-ext          |   3   |     16     |     30     |     3e-5      |
+| roberta-wwm-ext       |   3   |     16     |     30     |     3e-5      |
+| roberta-wwm-ext-large |   3   |     16     |     30     |     3e-5      |
+| roberta-large         |   3   |     16     |     30     |     2e-5      |
+| albert-tiny           |   3   |     16     |     30     |     5e-5      |
+| albert-xxlarge        |   3   |     16     |     30     |     3e-5      |
+| PCL-MedBERT           |   3   |     16     |     30     |     2e-5      |
+
