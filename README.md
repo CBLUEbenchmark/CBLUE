@@ -441,7 +441,7 @@ trainer = EETrainer(...)
 trainer.train(...)
 
 # 预测
-test_dataset = EEDataset(train_sample, tokenizer=..., mode='test', max_length=...)
+test_dataset = EEDataset(test_sample, tokenizer=..., mode='test', max_length=...)
 trainer.predict(test_dataset)
 ```
 
