@@ -27,14 +27,14 @@ class ERModel(nn.Module):
 class REModel(nn.Module):
     def __init__(self, tokenizer, encoder_class, encoder_path, num_labels):
         super(REModel, self).__init__()
-        self.bert = encoder_class.from_pretrained(encoder_path)
-        self.bert.resize_token_embeddings(len(tokenizer))
-        self.classifier = nn.Linear(in_features=self.bert.config.hidden_size*2, out_features=num_labels)
+        self.encoder = encoder_class.from_pretrained(encoder_path)
+        self.encoder.resize_token_embeddings(len(tokenizer))
+        self.classifier = nn.Linear(in_features=self.encoder.config.hidden_size*2, out_features=num_labels)
 
     def forward(self, input_ids, token_type_ids, attention_mask, flag, labels=None):
         device = input_ids.device
 
-        output = self.bert(input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask)
+        output = self.encoder(input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask)
         last_hidden_state = output[0]   # batch, seq, hidden
         batch_size, seq_len, hidden_size = last_hidden_state.shape
         entity_hidden_state = torch.Tensor(batch_size, 2*hidden_size) # batch, 2*hidden
@@ -52,14 +52,14 @@ class REModel(nn.Module):
         return logits
 
 
-class CLSModel(nn.Module):
+class CDNForCLSModel(nn.Module):
     def __init__(self, encoder_class, encoder_path, num_labels):
-        super(CLSModel, self).__init__()
+        super(CDNForCLSModel, self).__init__()
 
-        self.encoder = encoder_class.from_pretrained(encoder_path)
+        self.encoder = encoder_class.from_pretrained(encoder_path, output_hidden_states=True)
         self.num_labels = num_labels
-        self.dropout = nn.Dropout(self.bert.config.hidden_dropout_prob)
-        self.classifier = nn.Linear(self.bert.config.hidden_size, num_labels)
+        self.dropout = nn.Dropout(self.encoder.config.hidden_dropout_prob)
+        self.classifier = nn.Linear(self.encoder.config.hidden_size, num_labels)
 
     def forward(self,
                 input_ids=None,

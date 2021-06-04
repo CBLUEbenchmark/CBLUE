@@ -15,6 +15,7 @@ class EEDataset(Dataset):
     ):
         super(EEDataset, self).__init__()
 
+        self.orig_text = samples['orig_text']
         self.texts = samples['text']
         if mode != "test":
             self.labels = samples['label']
@@ -56,7 +57,7 @@ class REDataset(Dataset):
 
         self.texts = samples['text']
         self.flags = samples['flag']
-        self.labels = samples['label']
+
         if mode != "test":
             self.labels = samples['label']
 
@@ -68,7 +69,7 @@ class REDataset(Dataset):
     def __getitem__(self, idx):
         text, flag = self.texts[idx], self.flags[idx]
         inputs = self.tokenizer(text, max_length=self.max_length, padding='max_length',
-                                truncation=True, add_special_tokens=False)
+                                truncation=True)
         input_ids, token_type_ids, attention_mask = inputs['input_ids'], inputs['token_type_ids'], \
                                                     inputs['attention_mask']
         s_encode = self.tokenizer.encode(flag[0])
@@ -116,7 +117,7 @@ class ERDataset(Dataset):
     def __getitem__(self, idx):
         text = self.texts[idx]
         inputs = self.tokenizer(text, max_length=self.max_length, padding="max_length",
-                                truncation=True, add_special_tokens=False)
+                                truncation=True)
         input_ids, token_type_ids, attention_mask = inputs['input_ids'], inputs['token_type_ids'], \
                                                     inputs['attention_mask']
         if self.mode != "test":
@@ -138,9 +139,10 @@ class ERDataset(Dataset):
                 sub_end_label[sub_end_idx] = 1
                 obj_start_label[obj_start_idx] = 1
                 obj_end_label[obj_end_idx] = 1
+
             return torch.tensor(input_ids).long(), \
                    torch.tensor(token_type_ids).long(), \
-                   torch.tensor(attention_mask).float(), \
+                   torch.tensor(attention_mask).long(), \
                    torch.tensor(sub_start_label).long(), \
                    torch.tensor(sub_end_label).long(), \
                    torch.tensor(obj_start_label).long(), \
@@ -148,7 +150,7 @@ class ERDataset(Dataset):
         else:
             return torch.tensor(input_ids).long(), \
                    torch.tensor(token_type_ids).long(), \
-                   torch.tensor(attention_mask).float()
+                   torch.tensor(attention_mask).long()
 
     def __len__(self):
         return len(self.texts)
@@ -168,9 +170,11 @@ class CDNDataset(Dataset):
 
         if dtype == 'cls':
             self.text2 = samples['text2']
-
-        if mode != 'test':
-            self.label = samples['label']
+            if mode == 'train':
+                self.label = samples['label']
+        else:
+            if mode != 'test':
+                self.label = samples['label']
 
         self.data_processor = data_processor
         self.dtype = dtype
@@ -178,7 +182,7 @@ class CDNDataset(Dataset):
 
     def __getitem__(self, item):
         if self.dtype == 'cls':
-            if self.mode != 'test':
+            if self.mode == 'train':
                 return self.text1[item], self.text2[item], self.label[item]
             else:
                 return self.text1[item], self.text2[item]
@@ -186,7 +190,7 @@ class CDNDataset(Dataset):
             if self.mode != 'test':
                 return self.text1[item], self.label[item]
             else:
-                return self.text1[item], self.label[item]
+                return self.text1[item]
 
     def __len__(self):
         return len(self.text1)
@@ -202,6 +206,8 @@ class CTCDataset(Dataset):
         super(CTCDataset, self).__init__()
 
         self.texts = samples['text']
+        self.ids = samples['id']
+
         if mode != 'test':
             self.labels = samples['label']
         self.data_processor = data_processor
@@ -231,6 +237,8 @@ class STSDataset(Dataset):
 
         self.text1 = samples['text1']
         self.text2 = samples['text2']
+        self.ids = samples['id']
+        self.category = samples['category']
 
         if mode != 'test':
             self.labels = samples['label']
@@ -259,6 +267,7 @@ class QQRDataset(Dataset):
 
         self.text1 = samples['text1']
         self.text2 = samples['text2']
+        self.ids = samples['id']
 
         if mode != 'test':
             self.labels = samples['label']
@@ -286,6 +295,7 @@ class QICDataset(Dataset):
         super(QICDataset, self).__init__()
 
         self.text = samples['text']
+        self.ids = samples['id']
 
         if mode != 'test':
             self.labels = samples['label']
@@ -314,6 +324,7 @@ class QTRDataset(Dataset):
 
         self.text1 = samples['text1']
         self.text2 = samples['text2']
+        self.ids = samples['id']
 
         if mode != 'test':
             self.labels = samples['label']

@@ -2,6 +2,7 @@ import os
 import json
 import pandas as pd
 import jieba
+import tqdm
 import numpy as np
 from gensim import corpora, models, similarities
 from cblue.utils import load_json, load_dict, write_dict, str_q2b
@@ -58,7 +59,7 @@ class EEDataProcessor(object):
                 data[i] = "{}{}".format(suffix, _type)
             return data
 
-        outputs = {'text': [], 'label': []}
+        outputs = {'text': [], 'label': [], 'orig_text': []}
         samples = load_json(path)
         for data in samples:
             if self.is_lower:
@@ -69,6 +70,7 @@ class EEDataProcessor(object):
                           for t in list(data["text"])]
             text_a = "".join(text_a)
             outputs['text'].append(text_a)
+            outputs['orig_text'].append(data['text'])
             if not is_predict:
                 labels = ["O"] * len(text_a)
                 for entity in data['entities']:
@@ -76,6 +78,51 @@ class EEDataProcessor(object):
                     labels = label_data(labels, start_idx, end_idx, type)
                 outputs['label'].append('\002'.join(labels))
         return outputs
+
+    def extract_result(self, results, test_input):
+        predicts = []
+        for j in range(len(results)):
+            text = "".join(test_input[j])
+            ret = []
+            entity_name = ""
+            flag = []
+            visit = False
+            start_idx, end_idx = 0, 0
+            for i, (char, tag) in enumerate(zip(text, results[j])):
+                tag = self.id2label[tag]
+                if tag[0] == "B":
+                    if entity_name != "":
+                        x = dict((a, flag.count(a)) for a in flag)
+                        y = [k for k, v in x.items() if max(x.values()) == v]
+                        ret.append({"start_idx": start_idx, "end_idx": end_idx, "type": y[0], "entity": entity_name})
+                        flag.clear()
+                        entity_name = ""
+                    visit = True
+                    start_idx = i
+                    entity_name += char
+                    flag.append(tag[2:])
+                    end_idx = i
+                elif tag[0] == "I" and visit:
+                    entity_name += char
+                    flag.append(tag[2:])
+                    end_idx = i
+                else:
+                    if entity_name != "":
+                        x = dict((a, flag.count(a)) for a in flag)
+                        y = [k for k, v in x.items() if max(x.values()) == v]
+                        ret.append({"start_idx": start_idx, "end_idx": end_idx, "type": y[0], "entity": entity_name})
+                        flag.clear()
+                    start_idx = i + 1
+                    visit = False
+                    flag.clear()
+                    entity_name = ""
+
+            if entity_name != "":
+                x = dict((a, flag.count(a)) for a in flag)
+                y = [k for k, v in x.items() if max(x.values()) == v]
+                ret.append({"start_idx": start_idx, "end_idx": end_idx, "type": y[0], "entity": entity_name})
+            predicts.append(ret)
+        return predicts
 
 
 class REDataProcessor(object):
@@ -91,8 +138,9 @@ class REDataProcessor(object):
         self.id2predicate = None
         self.s_entity_type = None
         self.o_entity_type = None
-        self.num_labels = len(self.predicate2id.keys())
         self._load_schema()
+
+        self.num_labels = len(self.predicate2id.keys())
 
     def get_train_sample(self):
         return self._pre_process(self.train_path)
@@ -103,7 +151,13 @@ class REDataProcessor(object):
     def get_test_sample(self, path):
         """ Need new test file generated from the result of ER prediction
         """
-        return self._pre_process(path)
+        with open(path, 'r', encoding="utf-8") as f:
+            lines = f.readlines()
+            samples = []
+            for line in lines:
+                data = json.loads(line)
+                samples.append(data)
+        return samples
 
     def _pre_process(self, path):
         with open(path, 'r', encoding='utf8') as f:
@@ -186,6 +240,29 @@ class REDataProcessor(object):
                 return i
         return 0
 
+    def build_text(self, data):
+        text = data['text']
+        result = []
+        outputs = {'text': [], 'flag': [], "spo_list": []}
+        for sub in data['sub_list']:
+            for obj in data['obj_list']:
+                if sub == obj:
+                    continue
+                sub_flag = ['<s>', '</s>']
+                obj_flag = ['<o>', '</o>']
+                sub_start = self.search(text, sub)  # sub在text的起点
+                sub_end = sub_start + len(sub)
+                text2 = text[:sub_start] + sub_flag[0] + sub + sub_flag[1] + text[sub_end:]
+                obj_start = self.search(text2, obj)
+                obj_end = obj_start + len(obj)
+                text3 = text2[:obj_start] + obj_flag[0] + obj + obj_flag[1] + text2[obj_end:]
+                result.append(
+                    {'text': text3, 'flag': (sub_flag[0], obj_flag[0]), 'spo_list': {'subject': sub, 'object': obj}})
+                outputs['text'].append(text3)
+                outputs['flag'].append((sub_flag[0], obj_flag[0]))
+                outputs['spo_list'].append({'subject': sub, 'object': obj})
+        return result, outputs
+
 
 class ERDataProcessor(object):
     def __init__(self, root):
@@ -238,6 +315,48 @@ class ERDataProcessor(object):
                 return i
         return 0
 
+    def _extract_entity(self, start_logits, end_logits, text_start_id, text_end_id):
+        # logits: seq
+        start_ids = (start_logits[text_start_id:text_end_id] >= 0.5).long()
+        end_ids = (end_logits[text_start_id:text_end_id] >= 0.5).long()
+
+        start_end_tuple_list = []
+        for i, start_id in enumerate(start_ids):
+            if start_id == 0:
+                continue  # 不是起点
+            if end_ids[i] == 1:  # 起点和终点重合
+                start_end_tuple_list.append((i, i))
+                continue
+            j = i + 1
+            find_end_tag = False
+            while j < len(end_ids):
+                if start_ids[j] == 1:
+                    break  # 终点前遇到新的起点，停止搜索
+                if end_ids[j] == 1:
+                    start_end_tuple_list.append((i, j))
+                    find_end_tag = True
+                    break
+                else:
+                    j += 1
+            if not find_end_tag:  # 没找到终点->孤立点
+                start_end_tuple_list.append((i, i))
+        return start_end_tuple_list
+
+    def extract_arg(self, start_logits, end_logits, text_start_id, text_end_id, text, text_mapping):
+        arg_tuple = self._extract_entity(start_logits, end_logits, text_start_id, text_end_id)
+
+        one_role_args = []
+        for k in arg_tuple:
+            if len(text_mapping) > 3:
+                # len(text_mapping) : token size
+                # k0: 起点    k1: 终点
+                start_split = text_mapping[k[0]]
+                end_split = text_mapping[k[1]]
+                if start_split != [] and end_split != []:
+                    tmp = text[start_split[0]:end_split[-1] + 1]
+                    one_role_args.append(tmp)
+        return one_role_args
+
 
 class CDNDataProcessor(object):
     def __init__(self, root, recall_k=200, negative_sample=3):
@@ -252,13 +371,24 @@ class CDNDataProcessor(object):
         self.recall_k = recall_k
         self.negative_sample = negative_sample
 
+        self.dictionary = None
+        self.index = None
+        self.tfidf = None
+        self.dictionary, self.index, self.tfidf = self._init_label_embedding()
+
+        self.num_labels_cls = 2
+        self.num_labels_num = 3
+
+        self.recall = None
+
     def get_train_sample(self, dtype='cls', do_augment=1):
         """
         do_augment: data augment
         """
         samples = self._pre_process(self.train_path, is_predict=False)
         if dtype == 'cls':
-            outputs = self._get_cls_samples(orig_samples=samples, is_predict=False, do_augment=do_augment)
+            outputs, recall_orig_samples = self._get_cls_samples(orig_samples=samples, mode='train', do_augment=do_augment)
+            return outputs, recall_orig_samples
         else:
             outputs = self._get_num_samples(orig_sample=samples, is_predict=False)
         return outputs
@@ -266,19 +396,20 @@ class CDNDataProcessor(object):
     def get_dev_sample(self, dtype='cls'):
         samples = self._pre_process(self.dev_path, is_predict=False)
         if dtype == 'cls':
-            outputs = self._get_cls_samples(orig_samples=samples, is_predict=False)
+            outputs, recall_orig_samples = self._get_cls_samples(orig_samples=samples, mode='eval')
+            return outputs, recall_orig_samples
         else:
             outputs = self._get_num_samples(orig_sample=samples, is_predict=False)
-        return outputs, samples
+        return outputs
 
     def get_test_sample(self, dtype='cls'):
         samples = self._pre_process(self.test_path, is_predict=True)
         if dtype == 'cls':
-            outputs = self._get_cls_samples(orig_samples=samples, is_predict=True)
+            outputs, recall_orig_samples = self._get_cls_samples(orig_samples=samples, mode='test')
+            return outputs, recall_orig_samples
         else:
             outputs = self._get_num_samples(orig_sample=samples, is_predict=True)
-
-        return outputs, samples
+        return outputs
 
     def _pre_process(self, path, is_predict=False):
         samples = load_json(path)
@@ -294,13 +425,62 @@ class CDNDataProcessor(object):
                 outputs['text'].append(text)
         return outputs
 
-    def _get_cls_samples(self, orig_samples, is_predict=False, do_augment=1):
+    def _save_cache(self, outputs, recall_orig_samples, mode='train'):
+        cache_df = pd.DataFrame(outputs)
+        cache_df.to_csv(os.path.join(self.task_data_dir, f'{mode}_samples.csv'), index=False)
+        recall_orig_cache_df = pd.DataFrame(recall_orig_samples)
+        recall_orig_cache_df['label'] = recall_orig_cache_df.label.apply(lambda x: " ".join([str(i) for i in x]))
+        recall_orig_cache_df['recall_label'] = recall_orig_cache_df.recall_label.apply(
+            lambda x: " ".join([str(i) for i in x]))
+        recall_orig_cache_df.to_csv(os.path.join(self.task_data_dir, f'{mode}_recall_orig_samples.csv'),
+                                    index=False)
+
+    def _load_cache(self, mode='train'):
+        outputs = {'text1': [], 'text2': [], 'label': []}
+        recall_orig_samples = {'text': [], 'label': [], 'recall_label': []}
+
+        train_cache_df = pd.read_csv(os.path.join(self.task_data_dir, f'{mode}_samples.csv'))
+        outputs['text1'] = train_cache_df['text1'].values.tolist()
+        outputs['text2'] = train_cache_df['text2'].values.tolist()
+        outputs['label'] = train_cache_df['label'].values.tolist()
+
+        train_recall_orig_cache_df = pd.read_csv(os.path.join(self.task_data_dir, f'{mode}_recall_orig_samples.csv'))
+        recall_orig_samples['text'] = train_recall_orig_cache_df['text'].values.tolist()
+        recall_orig_samples['label'] = train_recall_orig_cache_df['label'].values.tolist()
+        recall_orig_samples['recall_label'] = train_recall_orig_cache_df['recall_label'].values.tolist()
+        recall_orig_samples['label'] = [[int(label) for label in str(recall_orig_samples['label'][i]).split()] for i in
+                                        range(len(recall_orig_samples['label']))]
+        recall_orig_samples['recall_label'] = [[int(label) for label in str(recall_orig_samples['recall_label'][i]).split()] for i in
+                                               range(len(recall_orig_samples['recall_label']))]
+        return outputs, recall_orig_samples
+
+    def _get_cls_samples(self, orig_samples, mode='train', do_augment=1):
+        if mode == 'train':
+            if os.path.exists(os.path.join(self.task_data_dir, 'train_samples.csv')):
+                outputs, recall_orig_samples = self._load_cache(mode='train')
+                return outputs, recall_orig_samples
+        elif mode == 'eval':
+            if os.path.exists(os.path.join(self.task_data_dir, 'eval_samples.csv')):
+                outputs, recall_orig_samples = self._load_cache(mode='eval')
+                # outputs['text1'] = outputs['text1'][:10000]
+                # outputs['text2'] = outputs['text2'][:10000]
+                # outputs['label'] = outputs['label'][:10000]
+                # recall_orig_samples['text'] = recall_orig_samples['text'][:10000]
+                # recall_orig_samples['label'] = recall_orig_samples['label'][:10000]
+                # recall_orig_samples['recall_label'] = recall_orig_samples['recall_label'][:10000]
+                return outputs, recall_orig_samples
+        else:
+            if os.path.exists(os.path.join(self.task_data_dir, 'test_samples.csv')):
+                outputs, recall_orig_samples = self._load_cache(mode='test')
+                return outputs, recall_orig_samples
+
         outputs = {'text1': [], 'text2': [], 'label': []}
 
         texts = orig_samples['text']
         recall_samples_idx, recall_samples_scores = self._recall(texts)
+        recall_orig_samples = {'text': [], 'label': [], 'recall_label': []}
 
-        if not is_predict:
+        if mode == 'train':
             labels = orig_samples['label']
             for i in range(do_augment):
                 for text, label in zip(texts, labels):
@@ -309,24 +489,77 @@ class CDNDataProcessor(object):
                         outputs['text2'].append(label_)
                         outputs['label'].append(1)
 
-            cnt_label = 0
             for text, orig_label, recall_label in zip(texts, labels, recall_samples_idx):
                 orig_label_ids = [self.label2id[label] for label in orig_label]
+                cnt_label = 0
+
+                recall_orig_samples['text'].append(text)
+                recall_orig_samples['label'].append(orig_label_ids)
+                recall_orig_samples['recall_label'].append(recall_label)
+
+                # recall_label = np.random.permutation(recall_label)
+                cur_idx = 0
                 for label_ in recall_label:
+                    if cnt_label >= self.negative_sample:
+                        break
                     if label_ not in orig_label_ids:
                         outputs['text1'].append(text)
                         outputs['text2'].append(self.id2label[label_])
                         outputs['label'].append(0)
+                        orig_label_ids.append(label_)
                         cnt_label += 1
+                    cur_idx += 1
+                cnt_label = 0
+                recall_label = np.random.permutation(recall_label[cur_idx:])
+                for label_ in recall_label:
                     if cnt_label >= self.negative_sample:
                         break
-        else:
-            for text, recall_label in zip(texts, recall_samples_idx):
+                    if label_ not in orig_label_ids:
+                        outputs['text1'].append(text)
+                        outputs['text2'].append(self.id2label[label_])
+                        outputs['label'].append(0)
+                        orig_label_ids.append(label_)
+                        cnt_label += 1
+
+            self._save_cache(outputs, recall_orig_samples, mode='train')
+
+        elif mode == 'eval':
+            labels = orig_samples['label']
+            for text, orig_label, recall_label in zip(texts, labels, recall_samples_idx):
+                orig_label_ids = [self.label2id[label] for label in orig_label]
+                recall_orig_samples['text'].append(text)
+                recall_orig_samples['recall_label'].append(recall_label)
+                recall_orig_samples['label'].append(orig_label_ids)
+
                 for label_ in recall_label:
                     outputs['text1'].append(text)
                     outputs['text2'].append(self.id2label[label_])
+                    outputs['label'].append(0)
 
-        return outputs
+            cnt_label = 0
+            cnt_recall = 0
+            for text, orig_label, recall_label in zip(texts, labels, recall_samples_idx):
+                orig_label_ids = [self.label2id[label] for label in orig_label]
+                cnt_label += len(orig_label_ids)
+                cnt_recall += len(set(orig_label_ids) & set(recall_label))
+            self.recall = 1.0 * cnt_recall / cnt_label
+
+            self._save_cache(outputs, recall_orig_samples, mode='eval')
+
+        else:
+            for text, recall_label in zip(texts, recall_samples_idx):
+
+                recall_orig_samples['text'].append(text)
+                recall_orig_samples['recall_label'].append(recall_label)
+                recall_orig_samples['label'].append([0])
+
+                for label_ in recall_label:
+                    outputs['text1'].append(text)
+                    outputs['text2'].append(self.id2label[label_])
+                    outputs['label'].append(0)
+            self._save_cache(outputs, recall_orig_samples, mode='test')
+
+        return outputs, recall_orig_samples
 
     def _get_num_samples(self, orig_sample, is_predict=False):
         outputs = {'text1': [], 'text2': [], 'label': []}
@@ -337,13 +570,16 @@ class CDNDataProcessor(object):
 
             for text, label in zip(texts, labels):
                 outputs['text1'].append(text)
-                outputs['label'].append(len(label))
+                num_labels = len(label)
+                if num_labels > 2:
+                    num_labels = 3
+                outputs['label'].append(num_labels-1)
         else:
             outputs['text1'] = orig_sample['text']
 
         return outputs
 
-    def _recall(self, texts):
+    def _init_label_embedding(self):
         all_label_list = []
         for idx in range(len(self.label2id.keys())):
             all_label_list.append(list(jieba.cut(self.id2label[idx])))
@@ -351,25 +587,26 @@ class CDNDataProcessor(object):
         dictionary = corpora.Dictionary(all_label_list)  # 词典
         corpus = [dictionary.doc2bow(doc) for doc in all_label_list]  # 语料库
         tfidf = models.TfidfModel(corpus)  # 建立模型
-        index = similarities.SparseMatrixSimilarity(tfidf[corpus], num_features=len(dictionary.keys()))  # 相似度
+        index = similarities.SparseMatrixSimilarity(tfidf[corpus], num_features=len(dictionary.keys()))
 
+        return dictionary, index, tfidf
+
+    def _recall(self, texts):
         recall_scores_idx = np.zeros((len(texts), self.recall_k), dtype=np.int)
 
         recall_scores = np.zeros((len(texts), self.recall_k))
-        for i, x in enumerate(texts):
-            x_scores = np.zeros(len(self.label2id.keys()))
-            # lambdaCooc: 字词为级别的相似 0-1
+        for i, x in tqdm.tqdm(enumerate(texts), total=len(texts)):
             x_split = list(jieba.cut(x))
-            x_vec = dictionary.doc2bow(x_split)
-            x_sim = index[tfidf[x_vec]]  # 相似度分数 (1, labels)
+            x_vec = self.dictionary.doc2bow(x_split)
+            x_sim = self.index[self.tfidf[x_vec]]  # 相似度分数 (1, labels)
 
-            # dice 字符级别的相似性 0-1
-            # x : str
             x_dices = np.zeros(len(self.label2id.keys()))
             x_set = set(x)
-            for j in range(len(self.label2id.keys())):
-                y_set = set(self.id2label[j])
+
+            for j, y in enumerate(self.label2id.keys()):
+                y_set = set(y)
                 x_dices[j] = len(x_set & y_set) / min(len(x_set), len(y_set))
+
             x_scores = x_sim + x_dices
             x_scores_idx = np.argsort(x_scores)[:len(x_scores) - self.recall_k - 1:-1]  # 由大到小排序,取前K个
             x_scores = np.sort(x_scores)[:len(x_scores) - self.recall_k - 1:-1]
@@ -440,9 +677,10 @@ class CTCDataProcessor(object):
 
     def _pre_process(self, path, is_predict=False):
         samples = load_json(path)
-        outputs = {'text': [], 'label': []}
+        outputs = {'text': [], 'label': [], 'id': []}
         for sample in samples:
             outputs['text'].append(sample['text'])
+            outputs['id'].append(sample['id'])
             if not is_predict:
                 outputs['label'].append(self.label2id[sample['label']])
 
@@ -476,10 +714,12 @@ class STSDataProcessor(object):
 
     def _pre_process(self, path, is_predict):
         samples = load_json(path)
-        outputs = {'text1': [], 'text2': [], 'label': []}
+        outputs = {'text1': [], 'text2': [], 'label': [], 'id': [], 'category': []}
         for sample in samples:
             outputs['text1'].append(sample['text1'])
             outputs['text2'].append(sample['text2'])
+            outputs['id'].append(sample['id'])
+            outputs['category'].append(sample['category'])
             if not is_predict:
                 outputs['label'].append(self.label2id[sample['label']])
         return outputs
@@ -507,10 +747,11 @@ class QQRDataProcessor(object):
 
     def _pre_process(self, path, is_predict):
         samples = load_json(path)
-        outputs = {'text1': [], 'text2': [], 'label': []}
+        outputs = {'text1': [], 'text2': [], 'label': [], 'id': []}
         for sample in samples:
             outputs['text1'].append(sample['query1'])
             outputs['text2'].append(sample['query2'])
+            outputs['id'].append(sample['id'])
             if not is_predict:
                 outputs['label'].append(self.label2id[sample['label']])
         return outputs
@@ -540,9 +781,10 @@ class QICDataProcessor(object):
 
     def _pre_process(self, path, is_predict):
         samples = load_json(path)
-        outputs = {'text': [], 'label': []}
+        outputs = {'text': [], 'label': [], 'id': []}
         for sample in samples:
             outputs['text'].append(sample['query'])
+            outputs['id'].append(sample['id'])
             if not is_predict:
                 outputs['label'].append(self.label2id[sample['label']])
         return outputs
@@ -570,10 +812,11 @@ class QTRDataProcessor(object):
 
     def _pre_process(self, path, is_predict):
         samples = load_json(path)
-        outputs = {'text1': [], 'text2': [], 'label': []}
+        outputs = {'text1': [], 'text2': [], 'label': [], 'id': []}
         for sample in samples:
             outputs['text1'].append(sample['query'])
             outputs['text2'].append(sample['title'])
+            outputs['id'].append(sample['id'])
             if not is_predict:
                 outputs['label'].append(self.label2id[sample['label']])
         return outputs

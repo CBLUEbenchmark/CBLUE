@@ -1,5 +1,5 @@
-from .model import ERModel, REModel
+from .model import ERModel, REModel, CDNForCLSModel
 
 __all__ = [
-    'ERModel', 'REModel'
+    'ERModel', 'REModel', 'CDNForCLSModel'
 ]

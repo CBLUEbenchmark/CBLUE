@@ -1,13 +1,16 @@
 import os
+import json
 import numpy as np
 import torch
 import torch.nn as nn
 from transformers import AdamW, get_linear_schedule_with_warmup
 from torch.utils.data import Dataset, DataLoader
 
-from cblue.utils import seed_everything, ProgressBar
+from cblue.utils import seed_everything, ProgressBar, TokenRematch
 from cblue.metrics import sts_metric, qic_metric, qqr_metric, qtr_metric, \
-    ctc_metric, ee_metric, er_metric, re_metric
+    ctc_metric, ee_metric, er_metric, re_metric, cdn_cls_metric
+from cblue.metrics import sts_commit_prediction, qic_commit_prediction, qtr_commit_prediction, \
+    qqr_commit_prediction, ctc_commit_prediction, ee_commit_prediction, cdn_commit_prediction
 
 
 class Trainer(object):
@@ -17,9 +20,10 @@ class Trainer(object):
             model,
             data_processor,
             tokenizer,
-            train_dataset,
-            eval_dataset,
-            logger
+            logger,
+            model_class,
+            train_dataset=None,
+            eval_dataset=None,
     ):
 
         self.args = args
@@ -34,6 +38,7 @@ class Trainer(object):
             self.eval_dataset = eval_dataset
 
         self.logger = logger
+        self.model_class = model_class
 
     def train(self):
         args = self.args
@@ -107,12 +112,17 @@ class Trainer(object):
         if args.device == 'cuda':
             torch.cuda.empty_cache()
 
+        self._save_best_checkpoint(best_step=best_step)
+
         return global_step, best_step
 
     def evaluate(self, model):
         raise NotImplementedError
 
     def _save_checkpoint(self, model, step):
+        raise NotImplementedError
+
+    def _save_best_checkpoint(self, best_step):
         raise NotImplementedError
 
     def training_step(self, model, item):
@@ -132,6 +142,16 @@ class Trainer(object):
             shuffle=False
         )
 
+    def get_test_dataloader(self, test_dataset, batch_size=None):
+        if not batch_size:
+            batch_size = self.args.eval_batch_size
+
+        return DataLoader(
+            test_dataset,
+            batch_size=batch_size,
+            shuffle=False
+        )
+
 
 class EETrainer(Trainer):
     def __init__(
@@ -140,9 +160,10 @@ class EETrainer(Trainer):
             model,
             data_processor,
             tokenizer,
-            train_dataset,
-            eval_dataset,
-            logger
+            logger,
+            model_class,
+            train_dataset=None,
+            eval_dataset=None,
     ):
         super(EETrainer, self).__init__(
             args=args,
@@ -151,7 +172,8 @@ class EETrainer(Trainer):
             tokenizer=tokenizer,
             train_dataset=train_dataset,
             eval_dataset=eval_dataset,
-            logger=logger
+            logger=logger,
+            model_class=model_class
         )
 
     def training_step(self, model, item):
@@ -161,7 +183,7 @@ class EETrainer(Trainer):
         labels = item[1].to(self.args.device)
 
         inputs = self.tokenizer(text1, padding='max_length', max_length=self.args.max_length,
-                                truncation=True, return_tensors='pt', add_special_tokens=False)
+                                truncation=True, return_tensors='pt')
         inputs['input_ids'] = inputs['input_ids'].to(self.args.device)
         inputs['attention_mask'] = inputs['attention_mask'].to(self.args.device)
         inputs['token_type_ids'] = inputs['token_type_ids'].to(self.args.device)
@@ -190,7 +212,7 @@ class EETrainer(Trainer):
             labels = item[1].to(args.device)
 
             inputs = self.tokenizer(text1, return_tensors='pt', padding='max_length',
-                                    truncation=True, max_length=self.args.max_length, add_special_tokens=False)
+                                    truncation=True, max_length=self.args.max_length)
             inputs['input_ids'] = inputs['input_ids'].to(self.args.device)
             inputs['attention_mask'] = inputs['attention_mask'].to(self.args.device)
             inputs['token_type_ids'] = inputs['token_type_ids'].to(self.args.device)
@@ -214,6 +236,44 @@ class EETrainer(Trainer):
         logger.info("%s-%s precision: %s - recall: %s - f1 score: %s", args.task_name, args.model_name, p, r, f1)
         return f1
 
+    def predict(self, model, test_dataset):
+        args = self.args
+        logger = self.logger
+        test_dataloader = self.get_test_dataloader(test_dataset)
+        num_examples = len(test_dataloader.dataset)
+        model.to(args.device)
+
+        predictions = []
+
+        logger.info("***** Running prediction *****")
+        logger.info("Num samples %d", num_examples)
+        pbar = ProgressBar(n_total=len(test_dataloader), desc='Prediction')
+        for step, item in enumerate(test_dataloader):
+            model.eval()
+
+            text1 = item
+
+            inputs = self.tokenizer(text1, return_tensors='pt', padding='max_length',
+                                    truncation=True, max_length=self.args.max_length)
+            inputs['input_ids'] = inputs['input_ids'].to(self.args.device)
+            inputs['attention_mask'] = inputs['attention_mask'].to(self.args.device)
+            inputs['token_type_ids'] = inputs['token_type_ids'].to(self.args.device)
+
+            with torch.no_grad():
+                outputs = model(**inputs)
+                logits = outputs[0].detach()
+                active_index = (inputs['attention_mask'] == 1).cpu()
+                preds = logits.argmax(dim=-1).cpu()
+
+                for i in range(len(active_index)):
+                    predictions.append(preds[i][active_index[i]].tolist())
+            pbar(step=step, info="")
+
+        test_inputs = [list(text) for text in test_dataset.texts]
+        predictions = [pred[1:-1] for pred in predictions]
+        predicts = self.data_processor.extract_result(predictions, test_inputs)
+        ee_commit_prediction(dataset=test_dataset, preds=predicts, output_dir=args.result_output_dir)
+
     def _save_checkpoint(self, model, step):
         output_dir = os.path.join(self.args.output_dir, 'checkpoint-{}'.format(step))
         if not os.path.exists(output_dir):
@@ -223,6 +283,14 @@ class EETrainer(Trainer):
         self.logger.info('Saving models checkpoint to %s', output_dir)
         self.tokenizer.save_vocabulary(save_directory=output_dir)
 
+    def _save_best_checkpoint(self, best_step):
+        model = self.model_class.from_pretrained(os.path.join(self.args.output_dir, f'checkpoint-{best_step}'),
+                                                 num_labels=self.data_processor.num_labels)
+        model.save_pretrained(self.args.output_dir)
+        torch.save(self.args, os.path.join(self.args.output_dir, 'training_args.bin'))
+        self.logger.info('Saving models checkpoint to %s', self.args.output_dir)
+        self.tokenizer.save_vocabulary(save_directory=self.args.output_dir)
+
 
 class STSTrainer(Trainer):
     def __init__(
@@ -231,9 +299,10 @@ class STSTrainer(Trainer):
             model,
             data_processor,
             tokenizer,
-            train_dataset,
-            eval_dataset,
-            logger
+            logger,
+            model_class,
+            train_dataset=None,
+            eval_dataset=None,
     ):
         super(STSTrainer, self).__init__(
             args=args,
@@ -242,7 +311,8 @@ class STSTrainer(Trainer):
             tokenizer=tokenizer,
             train_dataset=train_dataset,
             eval_dataset=eval_dataset,
-            logger=logger
+            logger=logger,
+            model_class=model_class,
         )
 
     def training_step(self, model, item):
@@ -315,6 +385,54 @@ class STSTrainer(Trainer):
         self.logger.info('Saving models checkpoint to %s', output_dir)
         self.tokenizer.save_vocabulary(save_directory=output_dir)
 
+    def predict(self, test_dataset, model):
+        args = self.args
+        logger = self.logger
+        test_dataloader = self.get_test_dataloader(test_dataset)
+        num_examples = len(test_dataloader.dataset)
+        model.to(args.device)
+
+        preds = None
+
+        logger.info("***** Running prediction *****")
+        logger.info("Num samples %d", num_examples)
+        pbar = ProgressBar(n_total=len(test_dataloader), desc='Prediction')
+        for step, item in enumerate(test_dataloader):
+            model.eval()
+
+            text1 = item[0]
+            text2 = item[1]
+
+            inputs = self.tokenizer(text1, text2, return_tensors='pt', padding='max_length',
+                                    truncation='longest_first', max_length=self.args.max_length)
+            inputs['input_ids'] = inputs['input_ids'].to(self.args.device)
+            inputs['attention_mask'] = inputs['attention_mask'].to(self.args.device)
+            inputs['token_type_ids'] = inputs['token_type_ids'].to(self.args.device)
+
+            with torch.no_grad():
+                outputs = model(**inputs)
+                logits = outputs[0]
+
+            if preds is None:
+                preds = logits.detach().cpu().numpy()
+            else:
+                preds = np.append(preds, logits.detach().cpu().numpy(), axis=0)
+
+            pbar(step=step, info="")
+        preds = np.argmax(preds, axis=1)
+        sts_commit_prediction(dataset=test_dataset, preds=preds, output_dir=args.result_output_dir,
+                              id2label=self.data_processor.id2label)
+
+        return preds
+
+    def _save_best_checkpoint(self, best_step):
+        model = self.model_class.from_pretrained(os.path.join(self.args.output_dir, f'checkpoint-{best_step}'),
+                                                 num_labels=self.data_processor.num_labels)
+        model.save_pretrained(self.args.output_dir)
+        torch.save(self.args, os.path.join(self.args.output_dir, 'training_args.bin'))
+        self.logger.info('Saving models checkpoint to %s', self.args.output_dir)
+        self.tokenizer.save_vocabulary(save_directory=self.args.output_dir)
+
 
 class QICTrainer(Trainer):
     def __init__(
@@ -323,9 +441,10 @@ class QICTrainer(Trainer):
             model,
             data_processor,
             tokenizer,
-            train_dataset,
-            eval_dataset,
-            logger
+            logger,
+            model_class,
+            train_dataset=None,
+            eval_dataset=None,
     ):
         super(QICTrainer, self).__init__(
             args=args,
@@ -334,7 +453,8 @@ class QICTrainer(Trainer):
             tokenizer=tokenizer,
             train_dataset=train_dataset,
             eval_dataset=eval_dataset,
-            logger=logger
+            logger=logger,
+            model_class=model_class
         )
 
     def training_step(self, model, item):
@@ -395,6 +515,45 @@ class QICTrainer(Trainer):
         logger.info("%s-%s acc: %s", args.task_name, args.model_name, acc)
         return acc
 
+    def predict(self, test_dataset, model):
+        args = self.args
+        logger = self.logger
+        test_dataloader = self.get_test_dataloader(test_dataset)
+        num_examples = len(test_dataloader.dataset)
+        model.to(args.device)
+
+        preds = None
+
+        logger.info("***** Running prediction *****")
+        logger.info("Num samples %d", num_examples)
+        pbar = ProgressBar(n_total=len(test_dataloader), desc='Prediction')
+        for step, item in enumerate(test_dataloader):
+            model.eval()
+
+            text1 = item
+
+            inputs = self.tokenizer(text1, return_tensors='pt', padding='max_length',
+                                    truncation='longest_first', max_length=self.args.max_length)
+            inputs['input_ids'] = inputs['input_ids'].to(self.args.device)
+            inputs['attention_mask'] = inputs['attention_mask'].to(self.args.device)
+            inputs['token_type_ids'] = inputs['token_type_ids'].to(self.args.device)
+
+            with torch.no_grad():
+                outputs = model(**inputs)
+                logits = outputs[0]
+
+            if preds is None:
+                preds = logits.detach().cpu().numpy()
+            else:
+                preds = np.append(preds, logits.detach().cpu().numpy(), axis=0)
+
+            pbar(step=step, info="")
+        preds = np.argmax(preds, axis=1)
+        qic_commit_prediction(dataset=test_dataset, preds=preds, output_dir=args.result_output_dir,
+                              id2label=self.data_processor.id2label)
+
+        return preds
+
     def _save_checkpoint(self, model, step):
         output_dir = os.path.join(self.args.output_dir, 'checkpoint-{}'.format(step))
         if not os.path.exists(output_dir):
@@ -404,6 +563,14 @@ class QICTrainer(Trainer):
         self.logger.info('Saving models checkpoint to %s', output_dir)
         self.tokenizer.save_vocabulary(save_directory=output_dir)
 
+    def _save_best_checkpoint(self, best_step):
+        model = self.model_class.from_pretrained(os.path.join(self.args.output_dir, f'checkpoint-{best_step}'),
+                                                 num_labels=self.data_processor.num_labels)
+        model.save_pretrained(self.args.output_dir)
+        torch.save(self.args, os.path.join(self.args.output_dir, 'training_args.bin'))
+        self.logger.info('Saving models checkpoint to %s', self.args.output_dir)
+        self.tokenizer.save_vocabulary(save_directory=self.args.output_dir)
+
 
 class QQRTrainer(Trainer):
     def __init__(
@@ -412,9 +579,10 @@ class QQRTrainer(Trainer):
             model,
             data_processor,
             tokenizer,
-            train_dataset,
-            eval_dataset,
-            logger
+            logger,
+            model_class,
+            train_dataset=None,
+            eval_dataset=None,
     ):
         super(QQRTrainer, self).__init__(
             args=args,
@@ -423,7 +591,8 @@ class QQRTrainer(Trainer):
             tokenizer=tokenizer,
             train_dataset=train_dataset,
             eval_dataset=eval_dataset,
-            logger=logger
+            logger=logger,
+            model_class=model_class
         )
 
     def training_step(self, model, item):
@@ -486,6 +655,44 @@ class QQRTrainer(Trainer):
         logger.info("%s-%s acc: %s", args.task_name, args.model_name, acc)
         return acc
 
+    def predict(self, test_dataset, model):
+        args = self.args
+        logger = self.logger
+        test_dataloader = self.get_test_dataloader(test_dataset)
+        num_examples = len(test_dataloader.dataset)
+        model.to(args.device)
+
+        preds = None
+
+        logger.info("***** Running prediction *****")
+        logger.info("Num samples %d", num_examples)
+        pbar = ProgressBar(n_total=len(test_dataloader), desc='Prediction')
+        for step, item in enumerate(test_dataloader):
+            model.eval()
+
+            text1 = item[0]
+            text2 = item[1]
+
+            inputs = self.tokenizer(text1, text2, return_tensors='pt', padding='max_length',
+                                    truncation='longest_first', max_length=self.args.max_length)
+            inputs['input_ids'] = inputs['input_ids'].to(self.args.device)
+            inputs['attention_mask'] = inputs['attention_mask'].to(self.args.device)
+            inputs['token_type_ids'] = inputs['token_type_ids'].to(self.args.device)
+
+            with torch.no_grad():
+                outputs = model(**inputs)
+                logits = outputs[0]
+
+            if preds is None:
+                preds = logits.detach().cpu().numpy()
+            else:
+                preds = np.append(preds, logits.detach().cpu().numpy(), axis=0)
+
+            pbar(step=step, info="")
+        preds = np.argmax(preds, axis=1)
+        qqr_commit_prediction(dataset=test_dataset, preds=preds, output_dir=args.result_output_dir,
+                              id2label=self.data_processor.id2label)
+
     def _save_checkpoint(self, model, step):
         output_dir = os.path.join(self.args.output_dir, 'checkpoint-{}'.format(step))
         if not os.path.exists(output_dir):
@@ -495,6 +702,14 @@ class QQRTrainer(Trainer):
         self.logger.info('Saving models checkpoint to %s', output_dir)
         self.tokenizer.save_vocabulary(save_directory=output_dir)
 
+    def _save_best_checkpoint(self, best_step):
+        model = self.model_class.from_pretrained(os.path.join(self.args.output_dir, f'checkpoint-{best_step}'),
+                                                 num_labels=self.data_processor.num_labels)
+        model.save_pretrained(self.args.output_dir)
+        torch.save(self.args, os.path.join(self.args.output_dir, 'training_args.bin'))
+        self.logger.info('Saving models checkpoint to %s', self.args.output_dir)
+        self.tokenizer.save_vocabulary(save_directory=self.args.output_dir)
+
 
 class QTRTrainer(Trainer):
     def __init__(
@@ -503,9 +718,10 @@ class QTRTrainer(Trainer):
             model,
             data_processor,
             tokenizer,
-            train_dataset,
-            eval_dataset,
-            logger
+            logger,
+            model_class,
+            train_dataset=None,
+            eval_dataset=None,
     ):
         super(QTRTrainer, self).__init__(
             args=args,
@@ -514,7 +730,8 @@ class QTRTrainer(Trainer):
             tokenizer=tokenizer,
             train_dataset=train_dataset,
             eval_dataset=eval_dataset,
-            logger=logger
+            logger=logger,
+            model_class=model_class
         )
 
     def training_step(self, model, item):
@@ -577,6 +794,46 @@ class QTRTrainer(Trainer):
         logger.info("%s-%s acc: %s", args.task_name, args.model_name, acc)
         return acc
 
+    def predict(self, test_dataset, model):
+        args = self.args
+        logger = self.logger
+        test_dataloader = self.get_test_dataloader(test_dataset)
+        num_examples = len(test_dataloader.dataset)
+        model.to(args.device)
+
+        preds = None
+
+        logger.info("***** Running prediction *****")
+        logger.info("Num samples %d", num_examples)
+        pbar = ProgressBar(n_total=len(test_dataloader), desc='Prediction')
+        for step, item in enumerate(test_dataloader):
+            model.eval()
+
+            text1 = item[0]
+            text2 = item[1]
+
+            inputs = self.tokenizer(text1, text2, return_tensors='pt', padding='max_length',
+                                    truncation='longest_first', max_length=self.args.max_length)
+            inputs['input_ids'] = inputs['input_ids'].to(self.args.device)
+            inputs['attention_mask'] = inputs['attention_mask'].to(self.args.device)
+            inputs['token_type_ids'] = inputs['token_type_ids'].to(self.args.device)
+
+            with torch.no_grad():
+                outputs = model(**inputs)
+                logits = outputs[0]
+
+            if preds is None:
+                preds = logits.detach().cpu().numpy()
+            else:
+                preds = np.append(preds, logits.detach().cpu().numpy(), axis=0)
+
+            pbar(step=step, info="")
+        preds = np.argmax(preds, axis=1)
+        qtr_commit_prediction(dataset=test_dataset, preds=preds, output_dir=args.result_output_dir,
+                              id2label=self.data_processor.id2label)
+
+        return preds
+
     def _save_checkpoint(self, model, step):
         output_dir = os.path.join(self.args.output_dir, 'checkpoint-{}'.format(step))
         if not os.path.exists(output_dir):
@@ -586,6 +843,14 @@ class QTRTrainer(Trainer):
         self.logger.info('Saving models checkpoint to %s', output_dir)
         self.tokenizer.save_vocabulary(save_directory=output_dir)
 
+    def _save_best_checkpoint(self, best_step):
+        model = self.model_class.from_pretrained(os.path.join(self.args.output_dir, f'checkpoint-{best_step}'),
+                                                 num_labels=self.data_processor.num_labels)
+        model.save_pretrained(self.args.output_dir)
+        torch.save(self.args, os.path.join(self.args.output_dir, 'training_args.bin'))
+        self.logger.info('Saving models checkpoint to %s', self.args.output_dir)
+        self.tokenizer.save_vocabulary(save_directory=self.args.output_dir)
+
 
 class CTCTrainer(Trainer):
     def __init__(
@@ -594,9 +859,10 @@ class CTCTrainer(Trainer):
             model,
             data_processor,
             tokenizer,
-            train_dataset,
-            eval_dataset,
-            logger
+            logger,
+            model_class,
+            train_dataset=None,
+            eval_dataset=None,
     ):
         super(CTCTrainer, self).__init__(
             args=args,
@@ -605,7 +871,8 @@ class CTCTrainer(Trainer):
             tokenizer=tokenizer,
             train_dataset=train_dataset,
             eval_dataset=eval_dataset,
-            logger=logger
+            logger=logger,
+            model_class=model_class
         )
 
     def training_step(self, model, item):
@@ -666,6 +933,45 @@ class CTCTrainer(Trainer):
         logger.info("%s-%s precision: %s - recall: %s - f1 score: %s", args.task_name, args.model_name, p, r, f1)
         return f1
 
+    def predict(self, test_dataset, model):
+        args = self.args
+        logger = self.logger
+        test_dataloader = self.get_test_dataloader(test_dataset)
+        num_examples = len(test_dataloader.dataset)
+        model.to(args.device)
+
+        preds = None
+
+        logger.info("***** Running prediction *****")
+        logger.info("Num samples %d", num_examples)
+        pbar = ProgressBar(n_total=len(test_dataloader), desc='Prediction')
+        for step, item in enumerate(test_dataloader):
+            model.eval()
+
+            text1 = item
+
+            inputs = self.tokenizer(text1, return_tensors='pt', padding='max_length',
+                                    truncation='longest_first', max_length=self.args.max_length)
+            inputs['input_ids'] = inputs['input_ids'].to(self.args.device)
+            inputs['attention_mask'] = inputs['attention_mask'].to(self.args.device)
+            inputs['token_type_ids'] = inputs['token_type_ids'].to(self.args.device)
+
+            with torch.no_grad():
+                outputs = model(**inputs)
+                logits = outputs[0]
+
+            if preds is None:
+                preds = logits.detach().cpu().numpy()
+            else:
+                preds = np.append(preds, logits.detach().cpu().numpy(), axis=0)
+
+            pbar(step=step, info="")
+        preds = np.argmax(preds, axis=1)
+        ctc_commit_prediction(dataset=test_dataset, preds=preds, output_dir=args.result_output_dir,
+                              id2label=self.data_processor.id2label)
+
+        return preds
+
     def _save_checkpoint(self, model, step):
         output_dir = os.path.join(self.args.output_dir, 'checkpoint-{}'.format(step))
         if not os.path.exists(output_dir):
@@ -675,6 +981,14 @@ class CTCTrainer(Trainer):
         self.logger.info('Saving models checkpoint to %s', output_dir)
         self.tokenizer.save_vocabulary(save_directory=output_dir)
 
+    def _save_best_checkpoint(self, best_step):
+        model = self.model_class.from_pretrained(os.path.join(self.args.output_dir, f'checkpoint-{best_step}'),
+                                                 num_labels=self.data_processor.num_labels)
+        model.save_pretrained(self.args.output_dir)
+        torch.save(self.args, os.path.join(self.args.output_dir, 'training_args.bin'))
+        self.logger.info('Saving models checkpoint to %s', self.args.output_dir)
+        self.tokenizer.save_vocabulary(save_directory=self.args.output_dir)
+
 
 class ERTrainer(Trainer):
     def __init__(
@@ -683,9 +997,10 @@ class ERTrainer(Trainer):
             model,
             data_processor,
             tokenizer,
-            train_dataset,
-            eval_dataset,
-            logger
+            logger,
+            model_class,
+            train_dataset=None,
+            eval_dataset=None,
     ):
         super(ERTrainer, self).__init__(
             args=args,
@@ -694,7 +1009,8 @@ class ERTrainer(Trainer):
             tokenizer=tokenizer,
             train_dataset=train_dataset,
             eval_dataset=eval_dataset,
-            logger=logger
+            logger=logger,
+            model_class=model_class
         )
 
         self.loss_fn = nn.BCELoss()
@@ -783,12 +1099,50 @@ class ERTrainer(Trainer):
         logger.info("%s-%s f1 score: %s", args.task_name, args.model_name, f1)
         return f1
 
+    def predict(self, test_dataset, model):
+        args = self.args
+        logger = self.logger
+        test_dataloader = self.get_test_dataloader(test_dataset, batch_size=1)
+        num_examples = len(test_dataloader.dataset)
+        model.to(args.device)
+
+        logger.info("***** Running prediction *****")
+        logger.info("Num samples %d", num_examples)
+        with open(os.path.join(args.output_dir, 'CMeIE_test.json'), 'w', encoding='utf-8') as f:
+            for step, item in enumerate(test_dataloader):
+                model.eval()
+
+                input_ids, token_type_ids, attention_mask = item
+                input_ids = input_ids.to(self.args.device)
+                token_type_ids = token_type_ids.to(self.args.device)
+                attention_mask = attention_mask.to(self.args.device)
+
+                with torch.no_grad():
+                    sub_start_logits, sub_end_logits, obj_start_logits, obj_end_logits = model(input_ids, token_type_ids,
+                                                                                               attention_mask)
+                    text = test_dataset.texts[step]
+                    text_start_id, text_end_id = 1, attention_mask.sum().int().item()  # end+1
+                    text_mapping = TokenRematch().rematch(text, self.tokenizer.tokenize(text))
+
+                    sub_arg_list = self.data_processor.extract_arg(sub_start_logits.view(-1), sub_end_logits.view(-1), text_start_id, text_end_id,
+                                                                   text, text_mapping)
+                    obj_arg_list = self.data_processor.extract_arg(obj_start_logits.view(-1), obj_end_logits.view(-1), text_start_id, text_end_id,
+                                                                   text, text_mapping)
+                    result = {'text': text, 'sub_list': sub_arg_list, 'obj_list': obj_arg_list}
+                    json_data = json.dumps(result, ensure_ascii=False)
+                    f.write(json_data + '\n')
+
     def _save_checkpoint(self, model, step):
         output_dir = os.path.join(self.args.output_dir, 'checkpoint-{}'.format(step))
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
         torch.save(model.state_dict(), os.path.join(output_dir, 'pytorch_model.pt'))
         self.logger.info('Saving models checkpoint to %s', output_dir)
+        model.encoder.save_pretrained(output_dir)
+        self.tokenizer.save_vocabulary(save_directory=output_dir)
+
+    def _save_best_checkpoint(self, best_step):
+        pass
 
 
 class RETrainer(Trainer):
@@ -798,9 +1152,10 @@ class RETrainer(Trainer):
             model,
             data_processor,
             tokenizer,
-            train_dataset,
-            eval_dataset,
-            logger
+            logger,
+            model_class,
+            train_dataset=None,
+            eval_dataset=None
     ):
         super(RETrainer, self).__init__(
             args=args,
@@ -809,7 +1164,8 @@ class RETrainer(Trainer):
             tokenizer=tokenizer,
             train_dataset=train_dataset,
             eval_dataset=eval_dataset,
-            logger=logger
+            logger=logger,
+            model_class=model_class
         )
 
     def training_step(self, model, item):
@@ -851,13 +1207,74 @@ class RETrainer(Trainer):
                 preds = logits.detach().cpu().numpy()
                 eval_labels = label.detach().cpu().numpy()
             else:
-                preds = np.append(preds, logits.detach().cpu().numpy())
-                eval_labels = np.append(eval_labels, label.detach().cpu().numpy())
+                preds = np.append(preds, logits.detach().cpu().numpy(), axis=0)
+                eval_labels = np.append(eval_labels, label.detach().cpu().numpy(), axis=0)
 
         preds = np.argmax(preds, axis=1)
         p, r, f1, _ = re_metric(preds, eval_labels)
         logger.info("%s-%s precision: %s - recall: %s - f1 score: %s", args.task_name, args.model_name, p, r, f1)
         return f1
+
+    def predict(self, test_samples, model, re_dataset_class):
+        args = self.args
+        logger = self.logger
+        model.to(args.device)
+
+        logger.info("***** Running prediction *****")
+        with open(os.path.join(args.result_output_dir, 'CMeIE_test.json'), 'w',
+                  encoding="utf-8") as f:
+            for data in test_samples:
+                results, outputs = self.data_processor.build_text(data)
+                spo_list = [re['spo_list'] for re in results]
+                temp_re_dataset = re_dataset_class(outputs, data_processor=self.data_processor,
+                                                   tokenizer=self.tokenizer, max_length=args.max_length, mode="test")
+                logits = []
+                with torch.no_grad():
+                    for input_ids, token_type_ids, attention_mask, flag in temp_re_dataset:
+                        input_ids, token_type_ids, attention_mask, flag = input_ids.to(args.device), \
+                                                                          token_type_ids.to(args.device), \
+                                                                          attention_mask.to(args.device), \
+                                                                          flag.to(args.device)
+                        logit = model(input_ids=input_ids.view(1, -1), token_type_ids=token_type_ids.view(1, -1),
+                                      attention_mask=attention_mask.view(1, -1),
+                                      flag=flag.view(1, -1))  # batch, labels
+                        logit = logit.argmax(dim=-1).squeeze(-1)  # batch,
+                        logits.append(logit.detach().cpu().item())
+                for i in range(len(temp_re_dataset)):
+                    if logits[i] > 0:
+                        spo_list[i]['predicate'] = self.data_processor.id2predicate[logits[i]]
+
+                new_spo_list = []
+                for spo in spo_list:
+                    if 'predicate' in spo.keys():
+                        combined = True
+                        for text in data['text'].split("。"):
+                            if spo['object'] in text and spo['subject'] in text:
+                                combined = False
+                                break
+                        tmp = {}
+                        tmp['Combined'] = combined
+                        tmp['predicate'] = spo['predicate'].split('|')[0]
+                        tmp['subject'] = spo['subject']
+                        tmp['subject_type'] = self.data_processor.pre_sub_obj[spo['predicate']][0]
+                        tmp['object'] = {'@value': spo['object']}
+                        tmp['object_type'] = {'@value': self.data_processor.pre_sub_obj[spo['predicate']][1]}
+                        new_spo_list.append(tmp)
+
+                new_spo_list2 = []  # 去重
+                for s in new_spo_list:
+                    if s not in new_spo_list2:
+                        new_spo_list2.append(s)
+
+                for i in range(len(new_spo_list2)):
+                    if 'object' not in new_spo_list2[i].keys():
+                        del new_spo_list2[i]
+
+                tmp_result = dict()
+                tmp_result['text'] = data['text']
+                tmp_result['spo_list'] = new_spo_list2
+                json_data = json.dumps(tmp_result, ensure_ascii=False)
+                f.write(json_data + '\n')
 
     def _save_checkpoint(self, model, step):
         output_dir = os.path.join(self.args.output_dir, 'checkpoint-{}'.format(step))
@@ -865,4 +1282,248 @@ class RETrainer(Trainer):
             os.makedirs(output_dir)
         torch.save(model.state_dict(), os.path.join(output_dir, 'pytorch_model.pt'))
         self.logger.info('Saving models checkpoint to %s', output_dir)
+        model.encoder.save_pretrained(output_dir)
+        self.tokenizer.save_vocabulary(save_directory=output_dir)
 
+    def _save_best_checkpoint(self, best_step):
+        pass
+
+
+class CDNForCLSTrainer(Trainer):
+    def __init__(
+            self,
+            args,
+            model,
+            data_processor,
+            tokenizer,
+            logger,
+            model_class,
+            recall_orig_eval_samples=None,
+            train_dataset=None,
+            eval_dataset=None,
+    ):
+        super(CDNForCLSTrainer, self).__init__(
+            args=args,
+            model=model,
+            data_processor=data_processor,
+            tokenizer=tokenizer,
+            train_dataset=train_dataset,
+            eval_dataset=eval_dataset,
+            logger=logger,
+            model_class=model_class
+        )
+
+        self.recall_orig_eval_samples = recall_orig_eval_samples
+
+    def training_step(self, model, item):
+        model.train()
+
+        text1 = item[0]
+        text2 = item[1]
+        labels = item[2].to(self.args.device)
+
+        inputs = self.tokenizer(text1, text2, padding='max_length', max_length=self.args.max_length,
+                                truncation='longest_first', return_tensors='pt')
+
+        inputs['input_ids'] = inputs['input_ids'].to(self.args.device)
+        inputs['attention_mask'] = inputs['attention_mask'].to(self.args.device)
+        inputs['token_type_ids'] = inputs['token_type_ids'].to(self.args.device)
+
+        outputs = model(labels=labels, **inputs)
+        loss = outputs[0]
+        loss.backward()
+
+        return loss.detach()
+
+    def evaluate(self, model):
+        args = self.args
+        logger = self.logger
+        eval_dataloader = self.get_eval_dataloader()
+        num_examples = len(eval_dataloader.dataset)
+
+        preds = None
+
+        logger.info("***** Running evaluation *****")
+        logger.info("Num samples %d", num_examples)
+        for step, item in enumerate(eval_dataloader):
+            pbar = ProgressBar(n_total=len(eval_dataloader), desc='Evaluation')
+            model.eval()
+
+            text1 = item[0]
+            text2 = item[1]
+
+            inputs = self.tokenizer(text1, text2, return_tensors='pt', padding='max_length',
+                                    truncation='longest_first', max_length=self.args.max_length)
+            inputs['input_ids'] = inputs['input_ids'].to(self.args.device)
+            inputs['attention_mask'] = inputs['attention_mask'].to(self.args.device)
+            inputs['token_type_ids'] = inputs['token_type_ids'].to(self.args.device)
+
+            with torch.no_grad():
+                outputs = model(**inputs)
+                logits = outputs[0]
+
+            if preds is None:
+                preds = logits.detach().cpu()
+            else:
+                preds = torch.cat([preds, logits.detach().cpu()], dim=0)
+
+            pbar(step, info="")
+
+        # preds = np.argmax(preds, axis=1)
+        preds = preds.view(len(preds) // args.recall_k, args.recall_k, 2).softmax(dim=-1)
+        preds = preds[:, :, 1]
+
+        preds_topk = preds.topk(5, dim=-1)
+        preds_indices = preds_topk.indices
+        preds_values = (preds_topk.values >= 0.5).long()
+
+        p, r, f1 = cdn_cls_metric(preds_values, preds_indices, self.recall_orig_eval_samples['recall_label'],
+                                  self.recall_orig_eval_samples['label'])
+        logger.info("%s-%s precision: %s - recall: %s - f1 score: %s", args.task_name, args.model_name, p, r, f1)
+        return f1
+
+    def predict(self, test_dataset, model):
+        args = self.args
+        logger = self.logger
+        test_dataloader = self.get_test_dataloader(test_dataset)
+        num_examples = len(test_dataloader.dataset)
+        model.to(args.device)
+
+        preds = None
+
+        logger.info("***** Running prediction *****")
+        logger.info("Num samples %d", num_examples)
+        for step, item in enumerate(test_dataloader):
+            pbar = ProgressBar(n_total=len(test_dataloader), desc='Evaluation')
+            model.eval()
+
+            text1 = item[0]
+            text2 = item[1]
+
+            inputs = self.tokenizer(text1, text2, return_tensors='pt', padding='max_length',
+                                    truncation='longest_first', max_length=self.args.max_length)
+            inputs['input_ids'] = inputs['input_ids'].to(self.args.device)
+            inputs['attention_mask'] = inputs['attention_mask'].to(self.args.device)
+            inputs['token_type_ids'] = inputs['token_type_ids'].to(self.args.device)
+
+            with torch.no_grad():
+                outputs = model(**inputs)
+                logits = outputs[0]
+
+            if preds is None:
+                preds = logits.detach().cpu().numpy()
+            else:
+                preds = np.append(preds, logits.detach().cpu().numpy(), axis=0)
+
+            pbar(step, info="")
+
+        preds = np.argmax(preds, axis=1)
+        preds = preds.reshape(len(preds) // args.recall_k, args.recall_k)
+        cdn_commit_prediction(text=self.recall_orig_eval_samples['text'], preds=preds,
+                              recall_labels=self.recall_orig_eval_samples['recall_label'],
+                              output_dir=args.result_output_dir, id2label=self.data_processor.id2label)
+
+    def _save_checkpoint(self, model, step):
+        output_dir = os.path.join(self.args.output_dir, 'checkpoint-{}'.format(step))
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        model.save_pretrained(output_dir)
+        torch.save(self.args, os.path.join(output_dir, 'training_args.bin'))
+        self.logger.info('Saving models checkpoint to %s', output_dir)
+        self.tokenizer.save_vocabulary(save_directory=output_dir)
+
+    def _save_best_checkpoint(self, best_step):
+        model = self.model_class.from_pretrained(os.path.join(self.args.output_dir, f'checkpoint-{best_step}'),
+                                                 num_labels=self.data_processor.num_labels_cls)
+        model.save_pretrained(self.args.output_dir)
+        torch.save(self.args, os.path.join(self.args.output_dir, 'training_args.bin'))
+        self.logger.info('Saving models checkpoint to %s', self.args.output_dir)
+        self.tokenizer.save_vocabulary(save_directory=self.args.output_dir)
+
+
+class CDNForNUMTrainer(Trainer):
+    def __init__(
+            self,
+            args,
+            model,
+            data_processor,
+            tokenizer,
+            train_dataset,
+            eval_dataset,
+            logger
+    ):
+        super(CDNForNUMTrainer, self).__init__(
+            args=args,
+            model=model,
+            data_processor=data_processor,
+            tokenizer=tokenizer,
+            train_dataset=train_dataset,
+            eval_dataset=eval_dataset,
+            logger=logger
+        )
+
+    def training_step(self, model, item):
+        model.train()
+
+        text1 = item[0]
+        labels = item[1].to(self.args.device)
+
+        inputs = self.tokenizer(text1, padding='max_length', max_length=self.args.max_length,
+                                truncation=True, return_tensors='pt')
+
+        inputs['input_ids'] = inputs['input_ids'].to(self.args.device)
+        inputs['attention_mask'] = inputs['attention_mask'].to(self.args.device)
+        inputs['token_type_ids'] = inputs['token_type_ids'].to(self.args.device)
+
+        outputs = model(labels=labels, **inputs)
+        loss = outputs[0]
+        loss.backward()
+
+        return loss.detach()
+
+    def evaluate(self, model):
+        args = self.args
+        logger = self.logger
+        eval_dataloader = self.get_eval_dataloader()
+        num_examples = len(eval_dataloader.dataset)
+
+        preds = None
+        eval_labels = None
+
+        logger.info("***** Running evaluation *****")
+        logger.info("Num samples %d", num_examples)
+        for step, item in enumerate(eval_dataloader):
+            model.eval()
+
+            text1 = item[0]
+            labels = item[1].to(args.device)
+            inputs = self.tokenizer(text1, return_tensors='pt', padding='max_length',
+                                    truncation=True, max_length=self.args.max_length)
+            inputs['input_ids'] = inputs['input_ids'].to(self.args.device)
+            inputs['attention_mask'] = inputs['attention_mask'].to(self.args.device)
+            inputs['token_type_ids'] = inputs['token_type_ids'].to(self.args.device)
+
+            with torch.no_grad():
+                outputs = model(labels=labels, **inputs)
+                loss, logits = outputs[:2]
+
+            if preds is None:
+                preds = logits.detach().cpu().numpy()
+                eval_labels = labels.detach().cpu().numpy()
+            else:
+                preds = np.append(preds, logits.detach().cpu().numpy(), axis=0)
+                eval_labels = np.append(eval_labels, labels.detach().cpu().numpy(), axis=0)
+
+        preds = np.argmax(preds, axis=1)
+        p, r, f1, _ = ctc_metric(preds, eval_labels)
+        logger.info("%s-%s precision: %s - recall: %s - f1 score: %s", args.task_name, args.model_name, p, r, f1)
+        return f1
+
+    def _save_checkpoint(self, model, step):
+        output_dir = os.path.join(self.args.output_dir, 'checkpoint-{}'.format(step))
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        model.save_pretrained(output_dir)
+        torch.save(self.args, os.path.join(output_dir, 'training_args.bin'))
+        self.logger.info('Saving models checkpoint to %s', output_dir)
+        self.tokenizer.save_vocabulary(save_directory=output_dir)
