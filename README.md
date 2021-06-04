@@ -172,6 +172,7 @@ python baselines/run_classifier.py \
 | KUAKE-QTR | NLI                     | 24,174 | 2,913 | 5,465  | Accuracy           |
 | KUAKE-QQR | NLI                     | 15,000 | 1,600 | 1,596  | Accuracy           |
 
+
 #### 中文医学命名实体识别（CMeEE）
 
 本评测任务为面向中文医学文本的命名实体识别，即给定schema及句子sentence，对于给定的一组纯医学文本文档，任务的目标是识别并抽取出与医学临床相关的实体，并将他们归类到预先定义好的类别。将医学文本命名实体划分为九大类，包括：疾病(dis)，临床表现(sym)，药物(dru)，医疗设备(equ)，医疗程序(pro)，身体(bod)，医学检验项目(ite)，微生物类(mic)，科室(dep)。标注之前对文章进行自动分词处理，所有的医学实体均已正确切分。
@@ -226,6 +227,7 @@ python baselines/run_classifier.py \
   ] 
 }
 </details>
+
 #### 中文医学文本实体关系抽取（CMeIE）
 
 本评测任务为面向中文医学文本的实体关系抽取，即给定schema约束集合及句子sentence，其中schema定义了关系Predicate以及其对应的主体Subject和客体Object的类别，例如：
@@ -258,6 +260,7 @@ python baselines/run_classifier.py \
   ] 
 }
 </details>
+
 #### 临床术语标准化任务（CHIP-CDN）
 
 本评测任务主要目标是针对中文电子病历中挖掘出的真实诊断实体进行语义标准化。 给定一诊断原词，要求给出其对应的诊断标准词。所有诊断原词均来自于真实医疗数据，并以《国际疾病分类 ICD-10 北京临床版v601》词表为标准进行了标注（可能存在多个标准词，用##分隔）。
@@ -279,6 +282,7 @@ python baselines/run_classifier.py \
   }
 ]
 </details>
+
 #### 临床试验筛选标准短文本分类（CHIP-CTC）
 
 在本测评任务中，我们给定事先定义好的44种筛选标准语义类别 （详见附件的**category.xlsx** ）和一系列中文临床试验筛选标准的描述句子，任务目标是返回每一条筛选标准的具体类别。
@@ -303,6 +307,7 @@ python baselines/run_classifier.py \
   }
 ]
 </details>
+
 #### 平安医疗科技疾病问答迁移学习（CHIP-STS）
 
 在本测评任务中，给定来自5个不同病种的问句对，要求判定两个句子语义是否相同或者相近。category表示问句对的病种名称，分别对应：diabetes-糖尿病，hypertension-高血压，hepatitis-乙肝，aids-艾滋病，breast_cancer-乳腺癌。label表示问句之间的语义是否相同。若相同，标为1，若不相同，标为0。
@@ -333,6 +338,7 @@ python baselines/run_classifier.py \
   }
 ]
 </details>
+
 #### 医疗搜索检索词意图分类（KUAKE-QIC）
 
 在本评测任务中，给定医学搜索问题，要求对医学问题进行意图分类。医学问题分为病情诊断(diagnosis）、病因分析(cause)、治疗方案(method)、就医建议(advice)、指标解读(metric_explain)、疾病描述(disease_express)、后果表述(result)、注意事项(attention)、功效作用(effect)、医疗费用(price)、其他(other) 共11种类型。
