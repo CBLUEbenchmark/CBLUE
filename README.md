@@ -64,10 +64,10 @@ python3 / pytorch 1.7 / transformers 4.5.1 / jieba / gensim
 |  └── data
 |     └── output
 |     └── model_data
-|     	 └── bert-base
-|		 └── ...
+|        └── bert-base
+|        └── ...
 |     └── result_output
-| 		 └── KUAKE-QQR_test.json
+|        └── KUAKE-QQR_test.json
 |        └── ...
 ```
 
