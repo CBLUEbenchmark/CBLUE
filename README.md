@@ -276,6 +276,8 @@ The evaluation task is the extraction of entity relation on the medical text. Gi
   ] 
 }
 </details>
+
+
 ### CHIP-CDN
 
 The evalution task is the normalization of diagnosis entity from Chinese medical record. Given a diagnosis entity,  models are expected to return corresponding standard terms.
@@ -297,6 +299,8 @@ The evalution task is the normalization of diagnosis entity from Chinese medical
   }
 ]
 </details>
+
+
 ### CHIP-CTC
 
 In this evaluation task, given 44 semantic categories of screening standard (more detail in `category.xlsx`) and some description about Chinese clinical screening standard, models are expected to return every description's specific category.
@@ -321,6 +325,8 @@ In this evaluation task, given 44 semantic categories of screening standard (mor
   }
 ]
 </details>
+
+
 ### CHIP-STS
 
 In this evaluation task, given pairs of sentences involving five different diseases, models are expected to judge the semantic similarity of the pair of sentences.
@@ -351,6 +357,8 @@ In this evaluation task, given pairs of sentences involving five different disea
   }
 ]
 </details>
+
+
 ### KUAKE-QIC
 
 In this evaluation task, given a medical query, models are expected to classify the intention of patients. These medical query have 11 category: `diagnosis`, `cause`, `method`, `advice`, `metric explain`, `disease expression`, `result`, `attention`, `effect`, `price`, `other`.
@@ -375,6 +383,8 @@ In this evaluation task, given a medical query, models are expected to classify 
   }
 ]
 </details>
+
+
 ### KUAKE-QTR
 
 In this evaluation task, given a pair of query and title, models are expected to predict whether the topic of the pair query and title is consistent and the extent of their consistency. 
@@ -402,6 +412,8 @@ In this evaluation task, given a pair of query and title, models are expected to
   }
 ]
 </details>
+
+
 ### KUAKE-QQR
 
 In this evaluation task, given a pair of querys, models are expected to predict the extent of similarity between them.
@@ -429,6 +441,8 @@ In this evaluation task, given a pair of querys, models are expected to predict 
   }
 ]
 </details>
+
+
 ## Quick start
 
 The modules of `Data Processor`, `Model trainer` could be found in `cblue/`. You can easily construct your code, train and evaluate your own models and methods. The corresponding  `Data Processor`, `Dataset`, `Trainer` of eight tasks are listed below:
