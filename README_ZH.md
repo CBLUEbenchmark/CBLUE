@@ -11,8 +11,8 @@
 | ------------------------------------------------------------ | :------: | :----: | :------: | :------: | :------: | :------: | :------: | :------: | :--: |
 | [BERT-base](https://github.com/ymcui/Chinese-BERT-wwm)       |   62.1   |  54.0  |   55.4   |   69.2   |   83.0   |   84.3   |   60.0   | **84.7** | 69.0 |
 | [BERT-wwm-ext-base](https://github.com/ymcui/Chinese-BERT-wwm) |   61.7   |  54.0  |   55.4   |   70.1   |   83.9   |   84.5   |   60.9   |   84.4   | 69.4 |
-| [ALBERT-tiny](https://github.com/brightmart/albert_zh)       |   50.5   |  30.4  |   50.2   |   45.4   |   79.7   |   75.8   |   55.5   |   79.8   | 58.4 |
-| [ALBERT-xxlarge](https://huggingface.co/voidful/albert_chinese_xxlarge) |   61.8   |  47.6  |   37.5   |   58.6   |   84.8   |   84.8   |   62.2   |   83.1   | 65.2 |
+| [ALBERT-tiny](https://github.com/brightmart/albert_zh)       |   50.5   |  35.9  |   50.2   |   61.0   |   79.7   |   75.8   |   55.5   |   79.8   | 61.1 |
+| [ALBERT-xxlarge](https://huggingface.co/voidful/albert_chinese_xxlarge) |   61.8   |  47.6  |   37.5   |   66.9   |   84.8   |   84.8   |   62.2   |   83.1   | 66.1 |
 | [RoBERTa-large](https://github.com/brightmart/roberta_zh)    |   62.1   |  54.4  |   56.5   | **70.9** |   84.7   |   84.2   |   60.9   |   82.9   | 69.6 |
 | [RoBERTa-wwm-ext-base](https://github.com/ymcui/Chinese-BERT-wwm) |   62.4   |  53.7  |   56.4   |   69.4   |   83.7   | **85.5** |   60.3   |   82.7   | 69.3 |
 | [RoBERTa-wwm-ext-large](https://github.com/ymcui/Chinese-BERT-wwm) |   61.8   |  55.9  |   55.7   |   69.0   |   85.2   |   85.3   |   62.8   |   84.4   | 70.0 |
@@ -159,7 +159,7 @@ python baselines/run_classifier.py \
 
 将 `RESULT_OUTPUT_DIR` 目录下的结果文件打包成 `.zip` 文件便可提交， [提交结果](https://tianchi.aliyun.com/dataset/dataDetail?dataId=95414) 
 
-![commit](resources/img/commit.png)
+![commit](resources/img/submit.png)
 
 ## 任务介绍（Introduction of tasks）
 
@@ -425,7 +425,7 @@ python baselines/run_classifier.py \
 </details>
 
 
-## 编写自己的代码（Write own code）
+## Quick start
 
 我们同时提供了8个任务的数据处理、模型训练、验证的模块代码，可供快速构建自己的代码。
 

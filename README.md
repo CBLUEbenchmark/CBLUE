@@ -12,8 +12,8 @@ We evaluate the current 11 Chinese pre-trained models on the eight biomedical la
 | ------------------------------------------------------------ | :------: | :----: | :------: | :------: | :------: | :------: | :------: | :------: | :--: |
 | [BERT-base](https://github.com/ymcui/Chinese-BERT-wwm)       |   62.1   |  54.0  |   55.4   |   69.2   |   83.0   |   84.3   |   60.0   | **84.7** | 69.0 |
 | [BERT-wwm-ext-base](https://github.com/ymcui/Chinese-BERT-wwm) |   61.7   |  54.0  |   55.4   |   70.1   |   83.9   |   84.5   |   60.9   |   84.4   | 69.4 |
-| [ALBERT-tiny](https://github.com/brightmart/albert_zh)       |   50.5   |  30.4  |   50.2   |   45.4   |   79.7   |   75.8   |   55.5   |   79.8   | 58.4 |
-| [ALBERT-xxlarge](https://huggingface.co/voidful/albert_chinese_xxlarge) |   61.8   |  47.6  |   37.5   |   58.6   |   84.8   |   84.8   |   62.2   |   83.1   | 65.2 |
+| [ALBERT-tiny](https://github.com/brightmart/albert_zh)       |   50.5   |  35.9  |   50.2   |   61.0   |   79.7   |   75.8   |   55.5   |   79.8   | 61.1 |
+| [ALBERT-xxlarge](https://huggingface.co/voidful/albert_chinese_xxlarge) |   61.8   |  47.6  |   37.5   |   66.9   |   84.8   |   84.8   |   62.2   |   83.1   | 66.1 |
 | [RoBERTa-large](https://github.com/brightmart/roberta_zh)    |   62.1   |  54.4  |   56.5   | **70.9** |   84.7   |   84.2   |   60.9   |   82.9   | 69.6 |
 | [RoBERTa-wwm-ext-base](https://github.com/ymcui/Chinese-BERT-wwm) |   62.4   |  53.7  |   56.4   |   69.4   |   83.7   | **85.5** |   60.3   |   82.7   | 69.3 |
 | [RoBERTa-wwm-ext-large](https://github.com/ymcui/Chinese-BERT-wwm) |   61.8   |  55.9  |   55.7   |   69.0   |   85.2   |   85.3   |   62.8   |   84.4   | 70.0 |
@@ -172,13 +172,306 @@ python baselines/run_classifier.py \
 
 Compressing `RESULT_OUTPUT_DIR` as `.zip` file and submitting the file, you will get the score of evaluation on these biomedical NLU tasks, and your ranking! [Submit your results!](https://tianchi.aliyun.com/dataset/dataDetail?dataId=95414)
 
-![commit](resources/img/commit.png)
+![commit](resources/img/submit.png)
 
 ## Introduction of tasks
 
+For promoting the development and the application of language model in the biomedical field, we collect data from real-world biomedical scenarios and release the eight biomedical NLU (natural language understanding) tasks, including **information extraction from medical text** (name entity recognition, relation extraction), **normalization of medical term**, **medical text classification**, **medical sentence similarity estimation** and **medical QA**. 
+
+| Dataset   | Task                    | Train  | Dev   | Test   | Evaluation Metrics |
+| --------- | ----------------------- | ------ | ----- | ------ | ------------------ |
+| CMeEE     | NER                     | 15,000 | 5,000 | 3,000  | Micro F1           |
+| CMeIE     | Relation Extraction     | 14,339 | 3,585 | 4,482  | Micro F1           |
+| CHIP-CDN  | Sentence Similarity     | 6,000  | 2,000 | 10,192 | F1 score           |
+| CHIP-STS  | Sentence Similarity     | 16,000 | 4,000 | 10,000 | Macro F1           |
+| CHIP-CTC  | Sentence Classification | 22,962 | 7,682 | 10,000 | Macro F1           |
+| KUAKE-QIC | Sentence Classification | 6,931  | 1,955 | 1,944  | Accuracy           |
+| KUAKE-QTR | NLI                     | 24,174 | 2,913 | 5,465  | Accuracy           |
+| KUAKE-QQR | NLI                     | 15,000 | 1,600 | 1,596  | Accuracy           |
+
+### CMeEE
+
+The evaluation task is the recognition of name entity on the medical text. Given schema data and medical sentence, models are expected to extract entity about clinical information and classify these entity exactly. 
+
+<details>
+<summary>example</summary>
+{  
+  "text": "呼吸肌麻痹和呼吸中枢受累患者因呼吸不畅可并发肺炎、肺不张等。", 
+  "entities": [ 
+    { 
+      "start_idx": 0, 
+      "end_idx": 2, 
+      "type": "bod", 
+      "entity: "呼吸肌" 
+    }, 
+    { 
+      "start_idx": 0, 
+      "end_idx": 4, 
+      "type": "sym",
+       "entity: "呼吸肌麻痹" 
+     }, 
+     { 
+       "start_idx": 6, 
+       "end_idx": 9,
+       "type": "bod", 
+       "entity: "呼吸中枢"
+     }, 
+     { 
+       "start_idx": 6, 
+       "end_idx": 11, 
+       "type": "sym", 
+       "entity: "呼吸中枢受累" 
+   }, 
+   { 
+      "start_idx": 15, 
+      "end_idx": 18, 
+      "type": "sym", 
+      "entity: "呼吸不畅" 
+    }, 
+   { 
+      "start_idx": 22, 
+      "end_idx": 23, 
+      "type": "dis", 
+      "entity: "肺炎" 
+    }, 
+   { 
+      "start_idx": 25, 
+      "end_idx": 27, 
+      "type": "dis", 
+      "entity: "肺不张" 
+    } 
+  ] 
+}
+</details>
+
+### CMeIE
+
+The evaluation task is the extraction of entity relation on the medical text. Given schema and medical sentence, models are expected to automatically extract triples=[(S1, P1, O1), (S2, P2, O2)…] satifying the constraint of schema. The schema defines the category of the predicatie and corresponding subject and object, e.g.
+
+（“subject_type”:“疾病”，“predicate”: “药物治疗”，“object_type”:“药物”）
+（“subject_type”:“疾病”，“predicate”: “实验室检查”，“object_type”:“检查”）
+
+<details>
+<summary>example</summary>
+{  
+  "text": "慢性胰腺炎@ ###低剂量放射 自1964年起，有几项病例系列报道称外照射 (5-50Gy) 可以有效改善慢性胰腺炎患者的疼痛症状。慢性胰腺炎@从概念上讲，外照射可以起到抗炎和止痛作用，并且已经开始被用于非肿瘤性疼痛的治疗。", 
+  "spo_list": [ 
+    { 
+      "Combined": true, 
+      "predicate": "放射治疗", 
+      "subject": "慢性胰腺炎", 
+      "subject_type": "疾病", 
+      "object": { "@value": "外照射" }, 
+      "object_type": { "@value": "其他治疗" } 
+    }, 
+    { 
+      "Combined": true, 
+      "predicate": "放射治疗", 
+      "subject": "非肿瘤性疼痛", 
+      "subject_type": "疾病", 
+      "object": { "@value": "外照射" }, 
+      "object_type": { "@value": "其他治疗" } 
+      }
+    }
+  ] 
+}
+</details>
+### CHIP-CDN
+
+The evalution task is the normalization of diagnosis entity from Chinese medical record. Given a diagnosis entity,  models are expected to return corresponding standard terms.
+
+<details>
+<summary>example</summary>
+[
+  {
+    "text": "左膝退变伴游离体",
+    "normalized_result": "膝骨关节病##膝关节游离体"
+  },
+  {
+    "text": "糖尿病反复低血糖;骨质疏松;高血压冠心病不稳定心绞痛",
+    "normalized_result": "糖尿病性低血糖症##骨质疏松##高血压##冠状动脉粥样硬化性心脏病##不稳定性心绞痛"
+  },
+  {
+    "text": "右乳腺癌IV期",
+    "normalized_result": "乳腺恶性肿瘤##癌"
+  }
+]
+</details>
+### CHIP-CTC
+
+In this evaluation task, given 44 semantic categories of screening standard (more detail in `category.xlsx`) and some description about Chinese clinical screening standard, models are expected to return every description's specific category.
+
+<details>
+<summary>example</summary>
+[
+  {
+    "id": "s1",
+    "label": "Multiple",
+    "text": " 7.凝血功能异常（INR＞1.5 或凝血酶原时间（PT）＞ULN+4 秒或 APTT &gt;1.5 ULN），具有出血倾向或正在接受溶栓或抗凝治疗；"
+  },
+  {
+    "id": "s2",
+    "label": "Addictive Behavior",
+    "text": " （2）重度吸烟（大于10支/天）及酗酒患者"
+  },
+  {
+    "id": "s3",
+    "label": "Therapy or Surgery",
+    "text": " 13. 有器官移植病史或正等待器官移植的患者；"
+  }
+]
+</details>
+### CHIP-STS
+
+In this evaluation task, given pairs of sentences involving five different diseases, models are expected to judge the semantic similarity of the pair of sentences.
+
+<details>
+<summary>example</summary>
+[
+  {
+    "id": "1",
+    "text1": "糖尿病能吃减肥药吗？能治愈吗？",
+    "text2": "糖尿病为什么不能吃减肥药",
+    "label": "1",
+    "category": "diabetes"
+  },
+  {
+    "id": "2",
+    "text1": "有糖尿病和前列腺怎么保健怎样治疗",
+    "text2": "患有糖尿病和前列腺怎么办？",
+    "label": "1",
+    "category": "diabetes"
+  },
+  {
+    "id": "3",
+    "text1": "我也是乙肝携带患者，可以办健康证吗在",
+    "text2": "乙肝五项化验单怎么看呢",
+    "label": "0",
+    "category": "hepatitis"
+  }
+]
+</details>
+### KUAKE-QIC
+
+In this evaluation task, given a medical query, models are expected to classify the intention of patients. These medical query have 11 category: `diagnosis`, `cause`, `method`, `advice`, `metric explain`, `disease expression`, `result`, `attention`, `effect`, `price`, `other`.
+
+<details>
+<summary>example</summary>
+[
+  {
+    "id": "s1",
+    "query": "心肌缺血如何治疗与调养呢？",
+    "label": "治疗方案"
+  },
+  {
+    "id": "s2",
+    "query": "19号来的月经，25号服用了紧急避孕药本月5号，怎么办？",
+    "label": "治疗方案"
+  },
+  {
+    "id": "s3",
+    "query": "什么叫痔核脱出？什么叫外痔？",
+    "label": "疾病表述"
+  }
+]
+</details>
+### KUAKE-QTR
+
+In this evaluation task, given a pair of query and title, models are expected to predict whether the topic of the pair query and title is consistent and the extent of their consistency. 
+
+<details>
+<summary>example</summary>
+[
+  {
+    "id": "s1",
+    "query": "咳嗽到腹肌疼",
+    "title": "感冒咳嗽引起的腹肌疼痛，是怎么回事？",
+    "label": "2"
+  },
+  {
+    "id": "s2",
+    "query": "烂牙神经的药对怀孕胚胎",
+    "title": "怀孕两个月治疗牙齿烂牙神经用了含砷失活剂 怀孕两个月治疗...",
+    "label": "1"
+  },
+  {
+    "id": "s3",
+    "query": "怀孕可以空腹吃葡萄吗",
+    "title": "怀孕四个月，今早空腹吃了葡萄，然后肚子就一直胀胀的...",
+    "label": "1"
+  }
+]
+</details>
+### KUAKE-QQR
+
+In this evaluation task, given a pair of querys, models are expected to predict the extent of similarity between them.
+
+<details>
+<summary>example</summary>
+[
+  {
+    "id": "s1",
+    "query": "小孩子打呼噜什么原因",
+    "title": "孩子打呼噜是什么原因",
+    "label": "2"
+  },
+  {
+    "id": "s2",
+    "query": "小孩子打呼噜什么原因",
+    "title": "宝宝打呼噜是什么原因",
+    "label": "0"
+  },
+  {
+    "id": "s3",
+    "query": "小孩子打呼噜什么原因",
+    "title": "小儿打呼噜是什么原因引起的",
+    "label": "2"
+  }
+]
+</details>
+## Quick start
+
+The modules of `Data Processor`, `Model trainer` could be found in `cblue/`. You can easily construct your code, train and evaluate your own models and methods. The corresponding  `Data Processor`, `Dataset`, `Trainer` of eight tasks are listed below:
+
+| Task      | Data Processor (cblue.data)         | Dataset (cblue.data)    | Trainer (cblue.trainer)               |
+| --------- | ----------------------------------- | ----------------------- | ------------------------------------- |
+| CMeEE     | `EEDataProcessor`                   | `EEDataset`             | `EETrainer`                           |
+| CMeIE     | `ERDataProcessor`/`REDataProcessor` | `ERDataset`/`REDataset` | `ERTrainer`/`RETrainer`               |
+| CHIP-CDN  | `CDNDataProcessor`                  | `CDNDataset`            | `CDNForCLSTrainer`/`CDNForNUMTrainer` |
+| CHIP-CTC  | `CTCDataProcessor`                  | `CTCDataset`            | `CTCTrainer`                          |
+| CHIP-STS  | `STSDataProcessor`                  | `STSDataset`            | `STSTrainer`                          |
+| KUAKE-QIC | `QICDataProcessor`                  | `QICDataset`            | `QICTrainer`                          |
+| KUAKE-QQR | `QQRDataProcessor`                  | `QQRDataset`            | `QQRTrainer`                          |
+| KUAKE-QTR | `QTRDataProcessor`                  | `QTRDataset`            | `QTRTrainer`                          |
+
+**Example for CMeEE**
+
+```python
+from cblue.data import EEDataProcessor, EEDataset
+from cblue.trainer import EETrainer
+from cblue.metrics import ee_metric, ee_commit_prediction
+
+
+data_processor = EEDataProcessor(root=...)
+train_samples = data_processor.get_train_sample()
+eval_samples = data_processor.get_dev_sample()
+test_samples = data_processor,get_test_sample()
+
+# 'torch.Dataset'
+train_dataset = EEDataset(train_sample, tokenizer=..., mode='train', max_length=...)
+
+# training model
+trainer = EETrainer(...)
+trainer.train(...)
+
+# predicton and generation of result
+test_dataset = EEDataset(test_sample, tokenizer=..., mode='test', max_length=...)
+trainer.predict(test_dataset)
+```
+
 ## Training setup
 
-**Unified hyper-parameters**
+**Common hyper-parameters**
 
 |       Param       | Value |
 | :---------------: | :---: |
