@@ -2,11 +2,11 @@
 
 # CBLUE
 
-AI (Artificial Intelligence) is playing a  indispensabe role in the biomedical field, helping improve medical technology. For further accelerating reseach of AI in the biomedical field, we present **Chinese Biomedical Language Understanding Evaluation** (CBLUE) , including datasets collected from real-world biomedical scenarios, baseline models and an online  platform for model evaluation, comparison and analysis.
+AI (Artificial Intelligence) is playing an  indispensabe role in the biomedical field, helping improve medical technology. For further accelerating AI research in the biomedical field, we present **Chinese Biomedical Language Understanding Evaluation** (CBLUE), including datasets collected from real-world biomedical scenarios, baseline models,  and an online  platform for model evaluation, comparison and analysis.
 
 ## CBLUE Benchmark
 
-We evaluate the current 11 Chinese pre-trained model on the 8 biomedical language understanding tasks, and report the baselines of these tasks.
+We evaluate the current 11 Chinese pre-trained models on the eight biomedical language understanding tasks and report the baselines of these tasks.
 
 | Model                                                        |  CMedEE  | CMedIE |   CDN    |   CTC    |   STS    |   QIC    |   QTR    |   QQR    | Avg. |
 | ------------------------------------------------------------ | :------: | :----: | :------: | :------: | :------: | :------: | :------: | :------: | :--: |
@@ -35,7 +35,7 @@ python3 / pytorch 1.7 / transformers 4.5.1 / jieba / gensim
 
 [Download dataset](https://tianchi.aliyun.com/dataset/dataDetail?dataId=95414)
 
-The whole zip package includes the datasets of  8 biomedical NLU tasks (more detail in the follwing section). Every task includes the following files:
+The whole zip package includes the datasets of  8 biomedical NLU tasks (more detail in the following section). Every task includes the following files:
 
 ```text
 ├── {Task}
@@ -49,7 +49,7 @@ The whole zip package includes the datasets of  8 biomedical NLU tasks (more det
 
 **Notice: a few tasks have additional files, e.g. it includes 'category.xlsx' file in the CHIP-CTC task.** 
 
-You can download Chinese pre-trained models according to your need (download urls are provided above). With [Huggingface-Transformers](https://huggingface.co/) , the models above could be easily accessed and loaded.
+You can download Chinese pre-trained models according to your need (download URLs are provided above). With [Huggingface-Transformers](https://huggingface.co/) , the models above could be easily accessed and loaded.
 
 The reference directory:
 
@@ -77,7 +77,7 @@ The reference directory:
 
 #### Running examples
 
-The shell files of training and evaluation for every task is provided in `examples/` , and could directly run.
+The shell files of training and evaluation for every task are provided in `examples/` , and could directly run.
 
 Also, you can utilize the running codes in `baselines/` , and write your own shell files according to your need:
 
@@ -170,7 +170,7 @@ python baselines/run_classifier.py \
 
 #### Commit results
 
-Compressing `RESULT_OUTPUT_DIR` as `.zip` file and commiting the file, you will get the score of evaluation on these biomedical NLU tasks, and your ranking! [Commit your results!](https://tianchi.aliyun.com/dataset/dataDetail?dataId=95414)
+Compressing `RESULT_OUTPUT_DIR` as `.zip` file and committing the file, you will get the score of evaluation on these biomedical NLU tasks, and your ranking! [Commit your results!](https://tianchi.aliyun.com/dataset/dataDetail?dataId=95414)
 
 ![commit](resources/img/commit.png)
 
