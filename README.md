@@ -1,4 +1,4 @@
-[**中文说明**](https://github.com/CBLUEbenchmark/CBLUE) | [**English**]()
+[**中文说明**](https://github.com/CBLUEbenchmark/CBLUE) | [**English**](https://github.com/CBLUEbenchmark/CBLUE/blob/main/README_EN.md)
 
 # CBLUE
 
@@ -6,7 +6,7 @@
 
 ## 测评基准（CBLUE Benchmark）
 
-在8个中文医疗语言理解任务上，我们实验了8个中文预训练模型，发布了任务的基线。
+在8个中文医疗语言理解任务上，我们实验了11个中文预训练模型，发布了任务的基线。
 
 
 | Model                                                        |  CMedEE  | CMedIE |   CDN    |   CTC    |   STS    |   QIC    |   QTR    |   QQR    | Avg. |
