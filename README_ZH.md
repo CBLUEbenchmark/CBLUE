@@ -1,5 +1,3 @@
-[**中文说明**](https://github.com/CBLUEbenchmark/CBLUE) | [**English**](https://github.com/CBLUEbenchmark/CBLUE/blob/main/README_EN.md)
-
 # CBLUE
 
 在医疗领域，人工智能开始发挥其作用，助力医疗技术水平提高。为了进一步促进AI+医疗的研究进展，我们发布了中文医学语言理解测评（CBLUE），包括数据集、基准模型、排行榜。
@@ -617,4 +615,3 @@ from cblue.metrics import er_metric, er_commit_prediction, re_metric, re_commit_
 | albert-tiny           |   3   |     16     |     30     |     5e-5      |
 | albert-xxlarge        |   3   |     16     |     30     |     3e-5      |
 | PCL-MedBERT           |   3   |     16     |     30     |     2e-5      |
-
