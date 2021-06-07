@@ -155,7 +155,7 @@ python baselines/run_classifier.py \
 
 预测结果 `{task}_test.json` 将生成在 `RESULT_OUTPUT_DIR` 目录下。
 
-##### 提交结果（Commiting results）
+##### 提交结果（Submitting results）
 
 将 `RESULT_OUTPUT_DIR` 目录下的结果文件打包成 `.zip` 文件便可提交， [提交结果](https://tianchi.aliyun.com/dataset/dataDetail?dataId=95414) 
 

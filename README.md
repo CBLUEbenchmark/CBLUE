@@ -168,9 +168,9 @@ python baselines/run_classifier.py \
 
 **Notice: the result of prediction** `{TASK_NAME}_test.json` **will be generated in** `RESULT_OUTPUT_DIR` .
 
-### Commit results
+### Submit results
 
-Compressing `RESULT_OUTPUT_DIR` as `.zip` file and committing the file, you will get the score of evaluation on these biomedical NLU tasks, and your ranking! [Commit your results!](https://tianchi.aliyun.com/dataset/dataDetail?dataId=95414)
+Compressing `RESULT_OUTPUT_DIR` as `.zip` file and submitting the file, you will get the score of evaluation on these biomedical NLU tasks, and your ranking! [Submit your results!](https://tianchi.aliyun.com/dataset/dataDetail?dataId=95414)
 
 ![commit](resources/img/commit.png)
 
