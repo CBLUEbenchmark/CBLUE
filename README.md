@@ -176,7 +176,7 @@ Compressing `RESULT_OUTPUT_DIR` as `.zip` file and submitting the file, you will
 
 ## Introduction of tasks
 
-For promoting the development and the application of language model in the biomedical field, we collect data from real-world biomedical scenarios and release the eight biomedical NLU (natural language understanding) tasks, including **information extraction from medical text** (name entity recognition, relation extraction), **normalization of medical term**, **medical text classification**, **medical sentence similarity estimation** and **medical QA**. 
+For promoting the development and the application of language model in the biomedical field, we collect data from real-world biomedical scenarios and release the eight biomedical NLU (natural language understanding) tasks, including **information extraction from the medical text** (name entity recognition, relation extraction), **normalization of the medical term**, **medical text classification**, **medical sentence similarity estimation** and **medical QA**. 
 
 | Dataset   | Task                    | Train  | Dev   | Test   | Evaluation Metrics |
 | --------- | ----------------------- | ------ | ----- | ------ | ------------------ |
@@ -191,7 +191,7 @@ For promoting the development and the application of language model in the biome
 
 ### CMeEE
 
-The evaluation task is the recognition of name entity on the medical text. Given schema data and medical sentence, models are expected to extract entity about clinical information and classify these entity exactly. 
+The evaluation task is the recognition of the named entity on the medical text. Given schema data and medical sentences, models are expected to extract entity about clinical information and classify these entities exactly. 
 
 <details>
 <summary>example</summary>
@@ -246,7 +246,7 @@ The evaluation task is the recognition of name entity on the medical text. Given
 
 ### CMeIE
 
-The evaluation task is the extraction of entity relation on the medical text. Given schema and medical sentence, models are expected to automatically extract triples=[(S1, P1, O1), (S2, P2, O2)…] satifying the constraint of schema. The schema defines the category of the predicatie and corresponding subject and object, e.g.
+The evaluation task is the extraction of entity relation on the medical text. Given schema and medical sentences, models are expected to automatically extract triples=[(S1, P1, O1), (S2, P2, O2)…] satisfying the constraint of schema. The schema defines the category of the predicate and corresponding subject and object, e.g.
 
 （“subject_type”:“疾病”，“predicate”: “药物治疗”，“object_type”:“药物”）
 （“subject_type”:“疾病”，“predicate”: “实验室检查”，“object_type”:“检查”）
@@ -280,7 +280,7 @@ The evaluation task is the extraction of entity relation on the medical text. Gi
 
 ### CHIP-CDN
 
-The evalution task is the normalization of diagnosis entity from Chinese medical record. Given a diagnosis entity,  models are expected to return corresponding standard terms.
+The evaluation task is the normalization of the diagnosis entity from the Chinese medical record. Given a diagnosis entity,  models are expected to return corresponding standard terms.
 
 <details>
 <summary>example</summary>
@@ -361,7 +361,7 @@ In this evaluation task, given pairs of sentences involving five different disea
 
 ### KUAKE-QIC
 
-In this evaluation task, given a medical query, models are expected to classify the intention of patients. These medical query have 11 category: `diagnosis`, `cause`, `method`, `advice`, `metric explain`, `disease expression`, `result`, `attention`, `effect`, `price`, `other`.
+In this evaluation task, given a medical query, models are expected to classify the intention of patients. These medical queries have 11 categories: `diagnosis`, `cause`, `method`, `advice`, `metric explain`, `disease expression`, `result`, `attention`, `effect`, `price`, `other`.
 
 <details>
 <summary>example</summary>
@@ -416,7 +416,7 @@ In this evaluation task, given a pair of query and title, models are expected to
 
 ### KUAKE-QQR
 
-In this evaluation task, given a pair of querys, models are expected to predict the extent of similarity between them.
+In this evaluation task, given a pair of queries, models are expected to predict the extent of similarity between them.
 
 <details>
 <summary>example</summary>
@@ -465,7 +465,7 @@ from cblue.data import EEDataProcessor, EEDataset
 from cblue.trainer import EETrainer
 from cblue.metrics import ee_metric, ee_commit_prediction
 
-
+# get samples
 data_processor = EEDataProcessor(root=...)
 train_samples = data_processor.get_train_sample()
 eval_samples = data_processor.get_dev_sample()
