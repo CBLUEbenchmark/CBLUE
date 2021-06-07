@@ -25,13 +25,13 @@ We evaluate the current 11 Chinese pre-trained models on the eight biomedical la
 
 ## Baseline of tasks
 
-We present the baseline models on the biomedical tasks and release corresponding codes for quick start.
+We present the baseline models on the biomedical tasks and release corresponding codes for a quick start.
 
-#### Requirements
+### Requirements
 
 python3 / pytorch 1.7 / transformers 4.5.1 / jieba / gensim 
 
-#### Data preparation
+### Data preparation
 
 [Download dataset](https://tianchi.aliyun.com/dataset/dataDetail?dataId=95414)
 
@@ -75,17 +75,17 @@ The reference directory:
 |        └── ...
 ```
 
-#### Running examples
+### Running examples
 
 The shell files of training and evaluation for every task are provided in `examples/` , and could directly run.
 
-Also, you can utilize the running codes in `baselines/` , and write your own shell files according to your need:
+Also, you can utilize the running codes in `baselines/` , and write your shell files according to your need:
 
 - `baselines/run_classifer.py`: support `{sts, qqr, qtr, qic, ctc, ee}` tasks;
 - `baselines/run_cdn.py`: support `{cdn}` task;
 - `baselines/run_ie.py`: support `{ie}` task.
 
-**Training models**
+#### Training models
 
 Running shell files: `bash examples/run_{task}.sh`, and the contents of shell files are as follow:
 
@@ -136,7 +136,7 @@ The `MODEL_TYPE`-`MODEL_NAME` mappings are listed below.
 |  `albert`  | `albert-tiny`, `albert-xxlarge`                              |
 |   `zen`    | `zen`                                                        |
 
-**Inference & generation of results**
+#### Inference & generation of results
 
 Running shell files: `base examples/run_{task}.sh predict`, and the contents of shell files are as follows:
 
@@ -168,7 +168,7 @@ python baselines/run_classifier.py \
 
 **Notice: the result of prediction** `{TASK_NAME}_test.json` **will be generated in** `RESULT_OUTPUT_DIR` .
 
-#### Commit results
+### Commit results
 
 Compressing `RESULT_OUTPUT_DIR` as `.zip` file and committing the file, you will get the score of evaluation on these biomedical NLU tasks, and your ranking! [Commit your results!](https://tianchi.aliyun.com/dataset/dataDetail?dataId=95414)
 
