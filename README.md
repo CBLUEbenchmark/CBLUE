@@ -176,7 +176,7 @@ Compressing `RESULT_OUTPUT_DIR` as `.zip` file and submitting the file, you will
 
 ## Introduction of tasks
 
-For promoting the development and the application of language model in the biomedical field, we collect data from real-world biomedical scenarios and release the eight biomedical NLU (natural language understanding) tasks, including **information extraction from the medical text** (name entity recognition, relation extraction), **normalization of the medical term**, **medical text classification**, **medical sentence similarity estimation** and **medical QA**. 
+For promoting the development and the application of language model in the biomedical field, we collect data from real-world biomedical scenarios and release the eight biomedical NLU (natural language understanding) tasks, including **information extraction from the medical text** (named entity recognition, relation extraction), **normalization of the medical term**, **medical text classification**, **medical sentence similarity estimation** and **medical QA**. 
 
 | Dataset   | Task                    | Train  | Dev   | Test   | Evaluation Metrics |
 | --------- | ----------------------- | ------ | ----- | ------ | ------------------ |

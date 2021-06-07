@@ -123,6 +123,19 @@ python baselines/run_classifier.py \
 
 `Note：最优模型默认保存在'OUTPUT_DIR/MODEL_NAME/'`。
 
+- `MODEL_TYPE`：支持 `{bert, roberta, albert, zen}` 模型类型;
+
+- `MODEL_NAME`：支持 `{bert-base, bert-wwm-ext, albert-tiny, albert-xxlarge, zen, pcl-medbert, roberta-large, roberta-wwm-ext-base, roberta-wwm-ext-large, macbert-base, macbert-large}` 中文预训练模型
+
+ `MODEL_TYPE`-`MODEL_NAME` 对应关系如下：
+
+| MODEL_TYPE | MODEL_NAME                                                   |
+| :--------: | :----------------------------------------------------------- |
+|   `bert`   | `bert-base`, `bert-wwm-ext`, `pcl-medbert`, `macbert-base`, `macbert-large` |
+| `roberta`  | `roberta-large`, `roberta-wwm-ext-base`, `roberta-wwm-ext-large` |
+|  `albert`  | `albert-tiny`, `albert-xxlarge`                              |
+|   `zen`    | `zen`                                                        |
+
 **预测和生成结果（Inference & generation of results）**
 
 直接运行sh脚本文件 `bash examples/run_{task}.sh predict`，也可以根据预测的需要，调整sh脚本文件的内容，其具体内容如下：
@@ -427,7 +440,18 @@ python baselines/run_classifier.py \
 
 ## Quick start
 
-我们同时提供了8个任务的数据处理、模型训练、验证的模块代码，可供快速构建自己的代码。
+我们同时提供了8个任务的数据处理、模型训练、验证的模块代码，可供快速构建自己的代码。每个任务相应的 `Dataset`, `Data Processor`, `Trainer` 模块如下：
+
+| Task      | Data Processor (cblue.data)         | Dataset (cblue.data)    | Trainer (cblue.trainer)               |
+| --------- | ----------------------------------- | ----------------------- | ------------------------------------- |
+| CMeEE     | `EEDataProcessor`                   | `EEDataset`             | `EETrainer`                           |
+| CMeIE     | `ERDataProcessor`/`REDataProcessor` | `ERDataset`/`REDataset` | `ERTrainer`/`RETrainer`               |
+| CHIP-CDN  | `CDNDataProcessor`                  | `CDNDataset`            | `CDNForCLSTrainer`/`CDNForNUMTrainer` |
+| CHIP-CTC  | `CTCDataProcessor`                  | `CTCDataset`            | `CTCTrainer`                          |
+| CHIP-STS  | `STSDataProcessor`                  | `STSDataset`            | `STSTrainer`                          |
+| KUAKE-QIC | `QICDataProcessor`                  | `QICDataset`            | `QICTrainer`                          |
+| KUAKE-QQR | `QQRDataProcessor`                  | `QQRDataset`            | `QQRTrainer`                          |
+| KUAKE-QTR | `QTRDataProcessor`                  | `QTRDataset`            | `QTRTrainer`                          |
 
 #### CMeEE
 
