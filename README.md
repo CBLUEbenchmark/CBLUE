@@ -172,7 +172,7 @@ python baselines/run_classifier.py \
 
 Compressing `RESULT_OUTPUT_DIR` as `.zip` file and commiting the file, you will get the score of evaluation on these biomedical NLU tasks, and your ranking! [Commit your results!](https://tianchi.aliyun.com/dataset/dataDetail?dataId=95414)
 
-![commit](README_EN.assets/commit.png)
+![commit](README.assets/commit.png)
 
 ## Introduction of tasks
 
