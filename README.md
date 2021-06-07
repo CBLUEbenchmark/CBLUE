@@ -1,3 +1,5 @@
+[**中文说明**](https://github.com/CBLUEbenchmark/CBLUE) | [**English**]()
+
 # CBLUE
 
 在医疗领域，人工智能开始发挥其作用，助力医疗技术水平提高。为了进一步促进AI+医疗的研究进展，我们发布了中文医学语言理解测评（CBLUE），包括数据集、基准模型、排行榜。
@@ -7,17 +9,20 @@
 在8个中文医疗语言理解任务上，我们实验了8个中文预训练模型，发布了任务的基线。
 
 
-| Model                                                        |  CMedEE  | CMedIE | CDN  |   CTC    |   STS    |   QIC    |   QTR    |   QQR    | Avg. |
-| ------------------------------------------------------------ | :------: | :----: | :--: | :------: | :------: | :------: | :------: | :------: | :--: |
-| [BERT-base](https://github.com/ymcui/Chinese-BERT-wwm)       |   62.1   |  54.0  | 55.4 |   69.2   |   83.0   |   84.3   |   60.0   | **84.7** |      |
-| [BERT-wwm-ext-base](https://github.com/ymcui/Chinese-BERT-wwm) |   61.7   |  54.0  | 55.4 |   70.1   |   83.9   |   84.5   |   60.9   |   84.4   |      |
-| [ALBERT-tiny](https://github.com/brightmart/albert_zh)       |   50.5   |  30.4  | 50.2 |   45.4   |   79.7   |   75.8   |   55.5   |   79.8   |      |
-| [ALBERT-xxlarge](https://huggingface.co/voidful/albert_chinese_xxlarge) |   61.8   |        |      |   58.6   |   84.8   |   84.8   |   62.2   |   83.1   |      |
-| [RoBERTa-large](https://github.com/brightmart/roberta_zh)    |   62.1   |  54.4  | 56.5 | **70.9** |   84.7   |   84.2   |   60.9   |   82.9   |      |
-| [RoBERTa-wwm-ext-base](https://github.com/ymcui/Chinese-BERT-wwm) | **62.4** |  53.7  | 56.4 |   69.4   |   83.7   | **85.5** |   60.3   |   82.7   |      |
-| [RoBERTa-wwm-ext-large](https://github.com/ymcui/Chinese-BERT-wwm) |   61.8   |  55.9  | 55.7 |   69.0   | **85.2** |   85.3   | **62.8** |   84.4   |      |
-| [PCL-MedBERT](https://code.ihub.org.cn/projects/1775)        |   60.6   |  49.1  | 55.8 |   67.8   |   83.8   |   84.3   |   59.3   |   82.5   |      |
-| Human                                                        |   63.0   |  63.0  | 61.0 |   74.0   |   90.0   |   81.0   |   67.0   |   87.0   |      |
+| Model                                                        |  CMedEE  | CMedIE |   CDN    |   CTC    |   STS    |   QIC    |   QTR    |   QQR    | Avg. |
+| ------------------------------------------------------------ | :------: | :----: | :------: | :------: | :------: | :------: | :------: | :------: | :--: |
+| [BERT-base](https://github.com/ymcui/Chinese-BERT-wwm)       |   62.1   |  54.0  |   55.4   |   69.2   |   83.0   |   84.3   |   60.0   | **84.7** | 69.0 |
+| [BERT-wwm-ext-base](https://github.com/ymcui/Chinese-BERT-wwm) |   61.7   |  54.0  |   55.4   |   70.1   |   83.9   |   84.5   |   60.9   |   84.4   | 69.4 |
+| [ALBERT-tiny](https://github.com/brightmart/albert_zh)       |   50.5   |  30.4  |   50.2   |   45.4   |   79.7   |   75.8   |   55.5   |   79.8   | 58.4 |
+| [ALBERT-xxlarge](https://huggingface.co/voidful/albert_chinese_xxlarge) |   61.8   |  47.6  |   37.5   |   58.6   |   84.8   |   84.8   |   62.2   |   83.1   | 65.2 |
+| [RoBERTa-large](https://github.com/brightmart/roberta_zh)    |   62.1   |  54.4  |   56.5   | **70.9** |   84.7   |   84.2   |   60.9   |   82.9   | 69.6 |
+| [RoBERTa-wwm-ext-base](https://github.com/ymcui/Chinese-BERT-wwm) |   62.4   |  53.7  |   56.4   |   69.4   |   83.7   | **85.5** |   60.3   |   82.7   | 69.3 |
+| [RoBERTa-wwm-ext-large](https://github.com/ymcui/Chinese-BERT-wwm) |   61.8   |  55.9  |   55.7   |   69.0   |   85.2   |   85.3   |   62.8   |   84.4   | 70.0 |
+| [PCL-MedBERT](https://code.ihub.org.cn/projects/1775)        |   60.6   |  49.1  |   55.8   |   67.8   |   83.8   |   84.3   |   59.3   |   82.5   | 67.9 |
+| [ZEN](https://github.com/sinovation/ZEN)                     |   61.0   |  50.1  |   57.8   |   68.6   |   83.5   |   83.2   |   60.3   |   83.0   | 68.4 |
+| [MacBERT-base](https://huggingface.co/hfl/chinese-macbert-base) |   60.7   |  53.2  |   57.7   |   67.7   |   84.4   |   84.9   |   59.7   |   84.0   | 69.0 |
+| [MacBERT-large](https://huggingface.co/hfl/chinese-macbert-large) | **62.4** |  51.6  | **59.3** |   68.6   | **85.6** |   82.7   | **62.9** |   83.5   | 69.6 |
+| Human                                                        |   63.0   |  63.0  |   61.0   |   74.0   |   90.0   |   81.0   |   67.0   |   87.0   | 73.3 |
 
 ## 任务基线（Baseline of tasks）
 
@@ -81,8 +86,9 @@ python3 / pytorch 1.7 / transformers 4.5.1 / jieba / gensim
 - `baselines/run_cdn.py`：仅支持`{cdn}`任务；
 - `baselines/run_ie.py`：仅支持 `{ie}` 任务。
 
-##### 训练模型 （Training models）
-直接运行sh脚本文件 `sh examples/run_{task}.sh` ，也可以根据训练测的需要，调整sh脚本文件的内容，其具体内容如下：
+**训练模型 （Training models）**
+
+直接运行sh脚本文件 `bash examples/run_{task}.sh` ，也可以根据训练测的需要，调整sh脚本文件的内容，其具体内容如下：
 
 ```shell
 DATA_DIR="CBLUEDatasets"                       # 数据集总目录
@@ -119,9 +125,9 @@ python baselines/run_classifier.py \
 
 `Note：最优模型默认保存在'OUTPUT_DIR/MODEL_NAME/'`。
 
-##### 预测和生成结果（Inference & generation of results）
+**预测和生成结果（Inference & generation of results）**
 
-直接运行sh脚本文件 `sh examples/run_{task}.sh predict`，也可以根据预测的需要，调整sh脚本文件的内容，其具体内容如下：
+直接运行sh脚本文件 `bash examples/run_{task}.sh predict`，也可以根据预测的需要，调整sh脚本文件的内容，其具体内容如下：
 
 ```shell
 DATA_DIR="CBLUEDatasets"                       # 数据集总目录
@@ -425,7 +431,7 @@ python baselines/run_classifier.py \
 
 我们同时提供了8个任务的数据处理、模型训练、验证的模块代码，可供快速构建自己的代码。
 
-##### CMeEE
+#### CMeEE
 
 ```python
 from cblue.data import EEDataProcessor, EEDataset
@@ -452,7 +458,7 @@ test_dataset = EEDataset(test_sample, tokenizer=..., mode='test', max_length=...
 trainer.predict(test_dataset)
 ```
 
-##### CMeIE
+#### CMeIE
 
 `Note: 我们的 CMeIE 的 baseline 采用两阶段建模，故两阶段的模块代码拆分为了 'ER...' 和 'RE...'`
 
