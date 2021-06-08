@@ -1,5 +1,7 @@
 [**English**](https://github.com/CBLUEbenchmark/CBLUE) | [**中文说明**](https://github.com/CBLUEbenchmark/CBLUE/blob/main/README_ZH.md) 
 
+<img src="resources/img/LOGO.png" alt="LOGO" style="zoom:15%;" />
+
 # CBLUE
 
 AI (Artificial Intelligence) is playing an  indispensabe role in the biomedical field, helping improve medical technology. For further accelerating AI research in the biomedical field, we present **Chinese Biomedical Language Understanding Evaluation** (CBLUE), including datasets collected from real-world biomedical scenarios, baseline models,  and an online  platform for model evaluation, comparison and analysis.
@@ -172,7 +174,7 @@ python baselines/run_classifier.py \
 
 Compressing `RESULT_OUTPUT_DIR` as `.zip` file and submitting the file, you will get the score of evaluation on these biomedical NLU tasks, and your ranking! [Submit your results!](https://tianchi.aliyun.com/dataset/dataDetail?dataId=95414)
 
-![commit](resources/img/submit.png)
+![submit](resources/img/submit.png)
 
 ## Introduction of tasks
 
