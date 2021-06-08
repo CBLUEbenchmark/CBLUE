@@ -1,4 +1,4 @@
-<img src="resources/img/LOGO.png" height="20%" width="20%" />
+<div align="center"><img src="resources/img/LOGO.png" height="23%" width="23%" /></div>
 
 # CBLUE
 
