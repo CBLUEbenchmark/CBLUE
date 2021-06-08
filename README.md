@@ -1,6 +1,6 @@
 [**English**](https://github.com/CBLUEbenchmark/CBLUE) | [**中文说明**](https://github.com/CBLUEbenchmark/CBLUE/blob/main/README_ZH.md) 
 
-<div align="center"><img src="resources/img/LOGO.png" height="23%" width="23%" /></div>
+<p align="center"><img src="resources/img/LOGO.png" height="23%" width="23%" /></p>
 
 # CBLUE
 
