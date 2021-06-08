@@ -1,4 +1,4 @@
-<img src="resources/img/LOGO.png" alt="LOGO" style="zoom:15%;" />
+<img src="resources/img/LOGO.png" height="20%" width="20%" />
 
 # CBLUE
 
