@@ -184,7 +184,7 @@ python baselines/run_classifier.py \
 | --------- | ----------------------- | ------ | ----- | ------ | ------------------ |
 | CMeEE     | NER                     | 15,000 | 5,000 | 3,000  | Micro F1           |
 | CMeIE     | Relation Extraction     | 14,339 | 3,585 | 4,482  | Micro F1           |
-| CHIP-CDN  | Sentence Similarity     | 6,000  | 2,000 | 10,192 | F1 score           |
+| CHIP-CDN  | Diagnosis Normalization | 6,000  | 2,000 | 10,192 | Micro F1           |
 | CHIP-STS  | Sentence Similarity     | 16,000 | 4,000 | 10,000 | Macro F1           |
 | CHIP-CTC  | Sentence Classification | 22,962 | 7,682 | 10,000 | Macro F1           |
 | KUAKE-QIC | Sentence Classification | 6,931  | 1,955 | 1,944  | Accuracy           |
