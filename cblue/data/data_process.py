@@ -68,7 +68,7 @@ class EEDataProcessor(object):
             else:
                 text_a = ["，" if t == " " or t == "\n" or t == "\t" else t
                           for t in list(data["text"])]
-            text_a = "".join(text_a)
+            # text_a = "\002".join(text_a)
             outputs['text'].append(text_a)
             outputs['orig_text'].append(data['text'])
             if not is_predict:
@@ -387,8 +387,8 @@ class CDNDataProcessor(object):
         """
         samples = self._pre_process(self.train_path, is_predict=False)
         if dtype == 'cls':
-            outputs, recall_orig_samples = self._get_cls_samples(orig_samples=samples, mode='train', do_augment=do_augment)
-            return outputs, recall_orig_samples
+            outputs, recall_orig_samples, recall_orig_samples_scores = self._get_cls_samples(orig_samples=samples, mode='train', do_augment=do_augment)
+            return outputs, recall_orig_samples, recall_orig_samples_scores
         else:
             outputs = self._get_num_samples(orig_sample=samples, is_predict=False)
         return outputs
@@ -396,8 +396,8 @@ class CDNDataProcessor(object):
     def get_dev_sample(self, dtype='cls'):
         samples = self._pre_process(self.dev_path, is_predict=False)
         if dtype == 'cls':
-            outputs, recall_orig_samples = self._get_cls_samples(orig_samples=samples, mode='eval')
-            return outputs, recall_orig_samples
+            outputs, recall_orig_samples, recall_orig_samples_scores = self._get_cls_samples(orig_samples=samples, mode='eval')
+            return outputs, recall_orig_samples, recall_orig_samples_scores
         else:
             outputs = self._get_num_samples(orig_sample=samples, is_predict=False)
         return outputs
@@ -405,8 +405,8 @@ class CDNDataProcessor(object):
     def get_test_sample(self, dtype='cls'):
         samples = self._pre_process(self.test_path, is_predict=True)
         if dtype == 'cls':
-            outputs, recall_orig_samples = self._get_cls_samples(orig_samples=samples, mode='test')
-            return outputs, recall_orig_samples
+            outputs, recall_orig_samples, recall_orig_samples_scores = self._get_cls_samples(orig_samples=samples, mode='test')
+            return outputs, recall_orig_samples, recall_orig_samples_scores
         else:
             outputs = self._get_num_samples(orig_sample=samples, is_predict=True)
         return outputs
@@ -452,32 +452,22 @@ class CDNDataProcessor(object):
                                         range(len(recall_orig_samples['label']))]
         recall_orig_samples['recall_label'] = [[int(label) for label in str(recall_orig_samples['recall_label'][i]).split()] for i in
                                                range(len(recall_orig_samples['recall_label']))]
-        return outputs, recall_orig_samples
+        recall_samples_scores = np.load(os.path.join(self.task_data_dir, f'{mode}_recall_score.npy'))
+
+        return outputs, recall_orig_samples, recall_samples_scores
 
     def _get_cls_samples(self, orig_samples, mode='train', do_augment=1):
-        if mode == 'train':
-            if os.path.exists(os.path.join(self.task_data_dir, 'train_samples.csv')):
-                outputs, recall_orig_samples = self._load_cache(mode='train')
-                return outputs, recall_orig_samples
-        elif mode == 'eval':
-            if os.path.exists(os.path.join(self.task_data_dir, 'eval_samples.csv')):
-                outputs, recall_orig_samples = self._load_cache(mode='eval')
-                # outputs['text1'] = outputs['text1'][:10000]
-                # outputs['text2'] = outputs['text2'][:10000]
-                # outputs['label'] = outputs['label'][:10000]
-                # recall_orig_samples['text'] = recall_orig_samples['text'][:10000]
-                # recall_orig_samples['label'] = recall_orig_samples['label'][:10000]
-                # recall_orig_samples['recall_label'] = recall_orig_samples['recall_label'][:10000]
-                return outputs, recall_orig_samples
-        else:
-            if os.path.exists(os.path.join(self.task_data_dir, 'test_samples.csv')):
-                outputs, recall_orig_samples = self._load_cache(mode='test')
-                return outputs, recall_orig_samples
+        if os.path.exists(os.path.join(self.task_data_dir, f'{mode}_samples.csv')) and \
+                os.path.exists(os.path.join(self.task_data_dir, f'{mode}_recall_score.npy')) and \
+                os.path.exists(os.path.join(self.task_data_dir, f'{mode}_recall_orig_samples.csv')):
+            outputs, recall_orig_samples, recall_samples_scores = self._load_cache(mode=mode)
+            return outputs, recall_orig_samples, recall_samples_scores
 
         outputs = {'text1': [], 'text2': [], 'label': []}
 
         texts = orig_samples['text']
         recall_samples_idx, recall_samples_scores = self._recall(texts)
+        np.save(os.path.join(self.task_data_dir, f'{mode}_recall_score.npy'), recall_samples_scores)
         recall_orig_samples = {'text': [], 'label': [], 'recall_label': []}
 
         if mode == 'train':
@@ -498,19 +488,19 @@ class CDNDataProcessor(object):
                 recall_orig_samples['recall_label'].append(recall_label)
 
                 # recall_label = np.random.permutation(recall_label)
-                cur_idx = 0
-                for label_ in recall_label:
-                    if cnt_label >= self.negative_sample:
-                        break
-                    if label_ not in orig_label_ids:
-                        outputs['text1'].append(text)
-                        outputs['text2'].append(self.id2label[label_])
-                        outputs['label'].append(0)
-                        orig_label_ids.append(label_)
-                        cnt_label += 1
-                    cur_idx += 1
+                # cur_idx = 0
+                # for label_ in recall_label:
+                #     if cnt_label >= self.negative_sample:
+                #         break
+                #     if label_ not in orig_label_ids:
+                #         outputs['text1'].append(text)
+                #         outputs['text2'].append(self.id2label[label_])
+                #         outputs['label'].append(0)
+                #         orig_label_ids.append(label_)
+                #         cnt_label += 1
+                #     cur_idx += 1
                 cnt_label = 0
-                recall_label = np.random.permutation(recall_label[cur_idx:])
+                recall_label = np.random.permutation(recall_label)
                 for label_ in recall_label:
                     if cnt_label >= self.negative_sample:
                         break
@@ -525,24 +515,42 @@ class CDNDataProcessor(object):
 
         elif mode == 'eval':
             labels = orig_samples['label']
+
+            for text, label in zip(texts, labels):
+                for label_ in label:
+                    outputs['text1'].append(text)
+                    outputs['text2'].append(label_)
+                    outputs['label'].append(1)
+
             for text, orig_label, recall_label in zip(texts, labels, recall_samples_idx):
                 orig_label_ids = [self.label2id[label] for label in orig_label]
                 recall_orig_samples['text'].append(text)
                 recall_orig_samples['recall_label'].append(recall_label)
                 recall_orig_samples['label'].append(orig_label_ids)
 
+                # for label_ in recall_label:
+                #     outputs['text1'].append(text)
+                #     outputs['text2'].append(self.id2label[label_])
+                #     outputs['label'].append(0)
+                cnt_label = 0
+                recall_label = np.random.permutation(recall_label)
                 for label_ in recall_label:
-                    outputs['text1'].append(text)
-                    outputs['text2'].append(self.id2label[label_])
-                    outputs['label'].append(0)
+                    if cnt_label >= self.negative_sample:
+                        break
+                    if label_ not in orig_label_ids:
+                        outputs['text1'].append(text)
+                        outputs['text2'].append(self.id2label[label_])
+                        outputs['label'].append(0)
+                        orig_label_ids.append(label_)
+                        cnt_label += 1
 
-            cnt_label = 0
-            cnt_recall = 0
-            for text, orig_label, recall_label in zip(texts, labels, recall_samples_idx):
-                orig_label_ids = [self.label2id[label] for label in orig_label]
-                cnt_label += len(orig_label_ids)
-                cnt_recall += len(set(orig_label_ids) & set(recall_label))
-            self.recall = 1.0 * cnt_recall / cnt_label
+            # cnt_label = 0
+            # cnt_recall = 0
+            # for text, orig_label, recall_label in zip(texts, labels, recall_samples_idx):
+            #     orig_label_ids = [self.label2id[label] for label in orig_label]
+            #     cnt_label += len(orig_label_ids)
+            #     cnt_recall += len(set(orig_label_ids) & set(recall_label))
+            # self.recall = 1.0 * cnt_recall / cnt_label
 
             self._save_cache(outputs, recall_orig_samples, mode='eval')
 
@@ -559,7 +567,7 @@ class CDNDataProcessor(object):
                     outputs['label'].append(0)
             self._save_cache(outputs, recall_orig_samples, mode='test')
 
-        return outputs, recall_orig_samples
+        return outputs, recall_orig_samples, recall_samples_scores
 
     def _get_num_samples(self, orig_sample, is_predict=False):
         outputs = {'text1': [], 'text2': [], 'label': []}

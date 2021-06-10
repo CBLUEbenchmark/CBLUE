@@ -10,6 +10,8 @@ from cblue.data import STSDataProcessor, STSDataset, QICDataset, QICDataProcesso
     QQRDataProcessor, QTRDataset, QTRDataProcessor, CTCDataset, CTCDataProcessor, EEDataset, EEDataProcessor
 from cblue.trainer import STSTrainer, QICTrainer, QQRTrainer, QTRTrainer, CTCTrainer, EETrainer
 from cblue.utils import init_logger, seed_everything
+from cblue.models import ZenConfig, ZenNgramDict, ZenForSequenceClassification, ZenForTokenClassification
+
 
 TASK_DATASET_CLASS = {
     'ee': (EEDataset, EEDataProcessor),
@@ -32,13 +34,15 @@ TASK_TRAINER = {
 MODEL_CLASS = {
     'bert': (BertTokenizer, BertForSequenceClassification),
     'roberta': (BertTokenizer, BertForSequenceClassification),
-    'albert': (BertTokenizer, AlbertForSequenceClassification)
+    'albert': (BertTokenizer, AlbertForSequenceClassification),
+    'zen': (BertTokenizer, ZenForSequenceClassification)
 }
 
 TOKEN_MODEL_CLASS = {
     'bert': (BertTokenizer, BertForTokenClassification),
     'roberta': (BertTokenizer, BertForTokenClassification),
-    'albert': (BertTokenizer, AlbertForTokenClassification)
+    'albert': (BertTokenizer, AlbertForTokenClassification),
+    'zen': (BertTokenizer, ZenForTokenClassification)
 }
 
 
@@ -122,8 +126,15 @@ def main():
     if args.task_name == 'ee':
         tokenizer_class, model_class = TOKEN_MODEL_CLASS[args.model_type]
 
+    logger.info("Training/evaluation parameters %s", args)
     if args.do_train:
         tokenizer = tokenizer_class.from_pretrained(os.path.join(args.model_dir, args.model_name))
+
+        # compatible with 'ZEN' model
+        ngram_dict = None
+        if args.model_type == 'zen':
+            ngram_dict = ZenNgramDict(os.path.join(args.model_dir, args.model_name), tokenizer=tokenizer)
+
         data_processor = data_processor_class(root=args.data_dir)
         train_samples = data_processor.get_train_sample()
         eval_samples = data_processor.get_dev_sample()
@@ -132,31 +143,40 @@ def main():
             train_dataset = dataset_class(train_samples, data_processor, mode='train')
             eval_dataset = dataset_class(eval_samples, data_processor, mode='eval')
         else:
-            train_dataset = dataset_class(train_samples, data_processor, tokenizer, mode='train')
-            eval_dataset = dataset_class(eval_samples, data_processor, tokenizer, mode='eval')
+            train_dataset = dataset_class(train_samples, data_processor, tokenizer, mode='train',
+                                          model_type=args.model_type, ngram_dict=ngram_dict, max_length=args.max_length)
+            eval_dataset = dataset_class(eval_samples, data_processor, tokenizer, mode='eval',
+                                         model_type=args.model_type, ngram_dict=ngram_dict, max_length=args.max_length)
 
         model = model_class.from_pretrained(os.path.join(args.model_dir, args.model_name),
                                             num_labels=data_processor.num_labels)
 
         trainer = trainer_class(args=args, model=model, data_processor=data_processor,
                                 tokenizer=tokenizer, train_dataset=train_dataset, eval_dataset=eval_dataset,
-                                logger=logger, model_class=model_class)
+                                logger=logger, model_class=model_class, ngram_dict=ngram_dict)
 
         global_step, best_step = trainer.train()
 
     if args.do_predict:
         tokenizer = tokenizer_class.from_pretrained(args.output_dir)
+
+        ngram_dict = None
+        if args.model_type == 'zen':
+            ngram_dict = ZenNgramDict(os.path.join(args.model_dir, args.model_name), tokenizer=tokenizer)
+
         data_processor = data_processor_class(root=args.data_dir)
         test_samples = data_processor.get_test_sample()
 
         if args.task_name != 'ee':
-            test_dataset = dataset_class(test_samples, data_processor, mode='test')
+            test_dataset = dataset_class(test_samples, data_processor, mode='test', ngram_dict=ngram_dict,
+                                         max_length=args.max_length, model_type=args.model_type)
         else:
-            test_dataset = dataset_class(test_samples, data_processor, tokenizer, mode='test')
+            test_dataset = dataset_class(test_samples, data_processor, tokenizer, mode='test', ngram_dict=ngram_dict,
+                                         max_length=args.max_length, model_type=args.model_type)
 
         model = model_class.from_pretrained(args.output_dir, num_labels=data_processor.num_labels)
         trainer = trainer_class(args=args, model=model, data_processor=data_processor,
-                                tokenizer=tokenizer, logger=logger, model_class=model_class)
+                                tokenizer=tokenizer, logger=logger, model_class=model_class, ngram_dict=ngram_dict)
         trainer.predict(test_dataset=test_dataset, model=model)
 
 

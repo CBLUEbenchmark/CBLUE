@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from .zen import ZenModel
 
 
 class ERModel(nn.Module):
@@ -11,9 +12,17 @@ class ERModel(nn.Module):
         self.obj_startlayer = nn.Linear(in_features=self.encoder.config.hidden_size, out_features=1)
         self.obj_endlayer = nn.Linear(in_features=self.encoder.config.hidden_size, out_features=1)
 
-    def forward(self, input_ids, token_type_ids, attention_mask):
-        output = self.encoder(input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask)
-        last_hidden_state = output[0]   # batch, seq, hidden
+    def forward(self, input_ids, token_type_ids, attention_mask, input_ngram_ids=None, ngram_position_matrix=None,
+                ngram_token_type_ids=None, ngram_attention_mask=None):
+        if isinstance(self.encoder, ZenModel):
+            outputs = self.encoder(input_ids=input_ids, input_ngram_ids=input_ngram_ids, ngram_position_matrix=ngram_position_matrix,
+                                   token_type_ids=token_type_ids, attention_mask=attention_mask,
+                                   ngram_attention_mask=ngram_attention_mask, ngram_token_type_ids=ngram_token_type_ids,
+                                   output_all_encoded_layers=False)
+        else:
+            outputs = self.encoder(input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask)
+
+        last_hidden_state = outputs[0]   # batch, seq, hidden
 
         sub_start_idx = self.sub_startlayer(last_hidden_state).sigmoid()
         sub_end_idx = self.sub_endlayer(last_hidden_state).sigmoid()
@@ -25,17 +34,29 @@ class ERModel(nn.Module):
 
 
 class REModel(nn.Module):
-    def __init__(self, tokenizer, encoder_class, encoder_path, num_labels):
+    def __init__(self, tokenizer, encoder_class, encoder_path, num_labels, config=None):
         super(REModel, self).__init__()
-        self.encoder = encoder_class.from_pretrained(encoder_path)
+        if config:
+            self.encoder = encoder_class(config)
+        else:
+            self.encoder = encoder_class.from_pretrained(encoder_path)
         self.encoder.resize_token_embeddings(len(tokenizer))
         self.classifier = nn.Linear(in_features=self.encoder.config.hidden_size*2, out_features=num_labels)
 
-    def forward(self, input_ids, token_type_ids, attention_mask, flag, labels=None):
+    def forward(self, input_ids, token_type_ids, attention_mask, flag, labels=None, input_ngram_ids=None, ngram_position_matrix=None,
+                ngram_token_type_ids=None, ngram_attention_mask=None):
         device = input_ids.device
 
-        output = self.encoder(input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask)
-        last_hidden_state = output[0]   # batch, seq, hidden
+        if isinstance(self.encoder, ZenModel):
+            outputs = self.encoder(input_ids=input_ids, input_ngram_ids=input_ngram_ids,
+                                   ngram_position_matrix=ngram_position_matrix,
+                                   token_type_ids=token_type_ids, attention_mask=attention_mask,
+                                   ngram_attention_mask=ngram_attention_mask, ngram_token_type_ids=ngram_token_type_ids,
+                                   output_all_encoded_layers=False)
+        else:
+            outputs = self.encoder(input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask)
+
+        last_hidden_state = outputs[0]   # batch, seq, hidden
         batch_size, seq_len, hidden_size = last_hidden_state.shape
         entity_hidden_state = torch.Tensor(batch_size, 2*hidden_size) # batch, 2*hidden
         # flag: batch, 2

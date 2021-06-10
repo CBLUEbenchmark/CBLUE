@@ -3,6 +3,7 @@ import sys
 sys.path.append('.')
 import argparse
 import torch
+import numpy as np
 from transformers import BertTokenizer, BertModel, AlbertModel, BertForSequenceClassification, \
     AlbertForSequenceClassification
 
@@ -110,8 +111,8 @@ def main():
         tokenizer = tokenizer_class.from_pretrained(os.path.join(args.model_dir, args.model_name))
         data_processor = CDNDataProcessor(root=args.data_dir, recall_k=args.recall_k,
                                           negative_sample=args.num_neg)
-        train_samples, recall_orig_train_samples = data_processor.get_train_sample(dtype='cls', do_augment=args.do_aug)
-        eval_samples, recall_orig_eval_samples = data_processor.get_dev_sample(dtype='cls')
+        train_samples, recall_orig_train_samples, recall_orig_train_samples_scores = data_processor.get_train_sample(dtype='cls', do_augment=args.do_aug)
+        eval_samples, recall_orig_eval_samples, recall_orig_train_samples_scores = data_processor.get_dev_sample(dtype='cls')
         if data_processor.recall:
             logger.info('first recall score: %s', data_processor.recall)
 
@@ -126,41 +127,53 @@ def main():
         trainer = CDNForCLSTrainer(args=args, model=model, data_processor=data_processor,
                                    tokenizer=tokenizer, train_dataset=train_dataset, eval_dataset=eval_dataset,
                                    logger=logger, recall_orig_eval_samples=recall_orig_eval_samples,
-                                   model_class=cls_model_class)
+                                   model_class=cls_model_class, recall_orig_eval_samples_scores=recall_orig_train_samples_scores)
 
         global_step, best_step = trainer.train()
 
-        # logger.info('Training NUM model...')
-        # train_samples = data_processor.get_train_sample(dtype='num', do_augment=1)
-        # eval_samples = data_processor.get_dev_sample(dtype='num')
-        # train_dataset = CDNDataset(train_samples, data_processor, dtype='num', mode='train')
-        # eval_dataset = CDNDataset(eval_samples, data_processor, dtype='num', mode='eval')
-        #
-        # cls_model_class = CLS_MODEL_CLASS[args.model_type]
-        # model = cls_model_class.from_pretrained(os.path.join(args.model_dir, args.model_name),
-        #                                         num_labels=data_processor.num_labels_num)
-        # trainer = CDNForNUMTrainer(args=args, model=model, data_processor=data_processor,
-        #                            tokenizer=tokenizer, train_dataset=train_dataset, eval_dataset=eval_dataset,
-        #                            logger=logger)
-        #
-        # global_step, best_step = trainer.train()
+        logger.info('Training NUM model...')
+        args.logging_steps = 30
+        args.save_steps = 30
+        train_samples = data_processor.get_train_sample(dtype='num', do_augment=1)
+        eval_samples = data_processor.get_dev_sample(dtype='num')
+        train_dataset = CDNDataset(train_samples, data_processor, dtype='num', mode='train')
+        eval_dataset = CDNDataset(eval_samples, data_processor, dtype='num', mode='eval')
+
+        cls_model_class = CLS_MODEL_CLASS[args.model_type]
+        model = cls_model_class.from_pretrained(os.path.join(args.model_dir, args.model_name),
+                                                num_labels=data_processor.num_labels_num)
+        trainer = CDNForNUMTrainer(args=args, model=model, data_processor=data_processor,
+                                   tokenizer=tokenizer, train_dataset=train_dataset, eval_dataset=eval_dataset,
+                                   logger=logger, model_class=cls_model_class)
+
+        global_step, best_step = trainer.train()
 
     if args.do_predict:
         tokenizer = tokenizer_class.from_pretrained(args.output_dir)
         data_processor = CDNDataProcessor(root=args.data_dir, recall_k=args.recall_k,
                                           negative_sample=args.num_neg)
-        test_samples, recall_orig_test_samples = data_processor.get_test_sample(dtype='cls')
+        test_samples, recall_orig_test_samples, recall_orig_test_samples_scores = data_processor.get_test_sample(dtype='cls')
 
         test_dataset = CDNDataset(test_samples, data_processor, dtype='cls', mode='test')
         cls_model_class = CLS_MODEL_CLASS[args.model_type]
-        model = cls_model_class.from_pretrained(os.path.join(args.model_dir, args.model_name),
-                                                num_labels=data_processor.num_labels_cls)
-        trainer = CDNForCLSTrainer(args=args, model=model, data_processor=data_processor,
-                                   tokenizer=tokenizer, logger=logger,
-                                   recall_orig_eval_samples=recall_orig_test_samples,
-                                   model_class=cls_model_class)
+        # model = cls_model_class.from_pretrained(os.path.join(args.output_dir, 'cls'),
+        #                                         num_labels=data_processor.num_labels_cls)
+        # trainer = CDNForCLSTrainer(args=args, model=model, data_processor=data_processor,
+        #                            tokenizer=tokenizer, logger=logger,
+        #                            recall_orig_eval_samples=recall_orig_test_samples,
+        #                            model_class=cls_model_class)
+        # cls_preds = trainer.predict(test_dataset, model)
 
-        trainer.predict(test_dataset, model)
+        # cls_preds = np.load(os.path.join(args.result_output_dir, 'cdn_test_preds.npy'))
+
+        test_samples = data_processor.get_test_sample(dtype='num')
+        test_dataset = CDNDataset(test_samples, data_processor, dtype='num', mode='test')
+        model = cls_model_class.from_pretrained(os.path.join(args.output_dir, 'num'),
+                                                num_labels=data_processor.num_labels_num)
+        trainer = CDNForNUMTrainer(args=args, model=model, data_processor=data_processor,
+                                   tokenizer=tokenizer, logger=logger,
+                                   model_class=cls_model_class)
+        trainer.predict(model, test_dataset, cls_preds, recall_orig_test_samples, recall_orig_test_samples_scores)
 
 
 if __name__ == '__main__':

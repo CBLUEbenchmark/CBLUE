@@ -2,9 +2,9 @@
 DATA_DIR="CBLUEDatasets"
 
 TASK_NAME="ee"
-MODEL_TYPE="bert"
+MODEL_TYPE="zen"
 MODEL_DIR="data/model_data"
-MODEL_NAME="chinese-bert-wwm"
+MODEL_NAME="chinese-zen-base"
 OUTPUT_DIR="data/output"
 RESULT_OUTPUT_DIR="data/result_output"
 
@@ -23,8 +23,8 @@ if [ $# == 0 ]; then
         --result_output_dir=${RESULT_OUTPUT_DIR} \
         --do_train \
         --max_length=${MAX_LENGTH} \
-        --train_batch_size=32 \
-        --eval_batch_size=32 \
+        --train_batch_size=16 \
+        --eval_batch_size=16 \
         --learning_rate=3e-5 \
         --epochs=5 \
         --warmup_proportion=0.1 \

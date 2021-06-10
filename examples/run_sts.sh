@@ -4,7 +4,7 @@ DATA_DIR="CBLUEDatasets"
 TASK_NAME="sts"
 MODEL_TYPE="bert"
 MODEL_DIR="data/model_data"
-MODEL_NAME="chinese-bert-wwm"
+MODEL_NAME="chinese-bert-base"
 OUTPUT_DIR="data/output"
 RESULT_OUTPUT_DIR="data/result_output"
 
@@ -25,7 +25,7 @@ if [ $# == 0 ]; then
         --max_length=${MAX_LENGTH} \
         --train_batch_size=16 \
         --eval_batch_size=16 \
-        --learning_rate=3e-5 \
+        --learning_rate=2e-5 \
         --epochs=3 \
         --warmup_proportion=0.1 \
         --earlystop_patience=3 \

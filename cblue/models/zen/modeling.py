@@ -298,26 +298,20 @@ class ZenConfig(object):
             writer.write(self.to_json_string())
 
 
-try:
-    from apex.normalization.fused_layer_norm import FusedLayerNorm as BertLayerNorm
-except ImportError:
-    logger.info("Better speed can be achieved with apex installed from https://www.github.com/nvidia/apex .")
+class BertLayerNorm(nn.Module):
+    def __init__(self, hidden_size, eps=1e-12):
+        """Construct a layernorm module in the TF style (epsilon inside the square root).
+        """
+        super(BertLayerNorm, self).__init__()
+        self.weight = nn.Parameter(torch.ones(hidden_size))
+        self.bias = nn.Parameter(torch.zeros(hidden_size))
+        self.variance_epsilon = eps
 
-
-    class BertLayerNorm(nn.Module):
-        def __init__(self, hidden_size, eps=1e-12):
-            """Construct a layernorm module in the TF style (epsilon inside the square root).
-            """
-            super(BertLayerNorm, self).__init__()
-            self.weight = nn.Parameter(torch.ones(hidden_size))
-            self.bias = nn.Parameter(torch.zeros(hidden_size))
-            self.variance_epsilon = eps
-
-        def forward(self, x):
-            u = x.mean(-1, keepdim=True)
-            s = (x - u).pow(2).mean(-1, keepdim=True)
-            x = (x - u) / torch.sqrt(s + self.variance_epsilon)
-            return self.weight * x + self.bias
+    def forward(self, x):
+        u = x.mean(-1, keepdim=True)
+        s = (x - u).pow(2).mean(-1, keepdim=True)
+        x = (x - u) / torch.sqrt(s + self.variance_epsilon)
+        return self.weight * x + self.bias
 
 
 class BertEmbeddings(nn.Module):
@@ -839,6 +833,46 @@ class ZenPreTrainedModel(nn.Module):
                 model.__class__.__name__, "\n\t".join(error_msgs)))
         return model
 
+    def resize_token_embeddings(self, new_num_tokens) -> torch.nn.Embedding:
+        model_embeds = self._resize_token_embeddings(new_num_tokens)
+
+        return model_embeds
+
+    def _resize_token_embeddings(self, new_num_tokens):
+        old_embeddings = self.get_input_embeddings()
+        new_embeddings = self._get_resized_embeddings(old_embeddings, new_num_tokens)
+        self.set_input_embeddings(new_embeddings)
+
+        return self.get_input_embeddings()
+
+    def _get_resized_embeddings(
+        self, old_embeddings: torch.nn.Embedding, new_num_tokens=None
+    ) -> torch.nn.Embedding:
+        if new_num_tokens is None:
+            return old_embeddings
+
+        old_num_tokens, old_embedding_dim = old_embeddings.weight.size()
+        if old_num_tokens == new_num_tokens:
+            return old_embeddings
+
+        if not isinstance(old_embeddings, nn.Embedding):
+            raise TypeError(
+                f"Old embeddings are of type {type(old_embeddings)}, which is not an instance of {nn.Embedding}."
+                f"You should either use a different resize function or make sure that `old_embeddings` are an instance of {nn.Embedding}."
+            )
+
+        # Build new embeddings
+        new_embeddings = nn.Embedding(new_num_tokens, old_embedding_dim)
+
+        # initialize all new embeddings (in particular added tokens)
+        self.init_bert_weights(new_embeddings)
+
+        # Copy token embeddings from the previous weights
+        num_tokens_to_copy = min(old_num_tokens, new_num_tokens)
+        new_embeddings.weight.data[:num_tokens_to_copy, :] = old_embeddings.weight.data[:num_tokens_to_copy, :]
+
+        return new_embeddings
+
 
 class ZenModel(ZenPreTrainedModel):
     """ZEN model ("BERT-based Chinese (Z) text encoder Enhanced by N-gram representations").
@@ -978,6 +1012,12 @@ class ZenModel(ZenPreTrainedModel):
         if self.output_attentions:
             return all_attentions, encoded_layers, pooled_output
         return encoded_layers, pooled_output
+
+    def get_input_embeddings(self):
+        return self.embeddings.word_embeddings
+
+    def set_input_embeddings(self, value):
+        self.embeddings.word_embeddings = value
 
 
 class ZenForPreTraining(ZenPreTrainedModel):
@@ -1177,7 +1217,7 @@ class ZenForNextSentencePrediction(ZenPreTrainedModel):
         super(ZenForNextSentencePrediction, self).__init__(config)
         self.output_attentions = output_attentions
         self.bert = ZenModel(config, output_attentions=output_attentions,
-                              keep_multihead_output=keep_multihead_output)
+                             keep_multihead_output=keep_multihead_output)
         self.cls = ZenOnlyNSPHead(config)
         self.apply(self.init_bert_weights)
 
@@ -1245,14 +1285,15 @@ class ZenForSequenceClassification(ZenPreTrainedModel):
         self.output_attentions = output_attentions
         self.num_labels = num_labels
         self.bert = ZenModel(config, output_attentions=output_attentions,
-                              keep_multihead_output=keep_multihead_output)
+                             keep_multihead_output=keep_multihead_output)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         self.classifier = nn.Linear(config.hidden_size, num_labels)
         self.apply(self.init_bert_weights)
 
-    def forward(self, input_ids, input_ngram_ids, ngram_position_matrix, token_type_ids=None, attention_mask=None, labels=None, head_mask=None):
-        outputs = self.bert(input_ids, input_ngram_ids, ngram_position_matrix, token_type_ids, attention_mask,
-                            output_all_encoded_layers=False,
+    def forward(self, input_ids, input_ngram_ids, ngram_position_matrix, ngram_attention_mask=None, ngram_token_type_ids=None, token_type_ids=None, attention_mask=None, labels=None, head_mask=None):
+        outputs = self.bert(input_ids=input_ids, input_ngram_ids=input_ngram_ids, ngram_position_matrix=ngram_position_matrix,
+                            token_type_ids=token_type_ids, attention_mask=attention_mask, output_all_encoded_layers=False,
+                            ngram_attention_mask=ngram_attention_mask, ngram_token_type_ids=ngram_token_type_ids,
                             head_mask=head_mask)
         if self.output_attentions:
             all_attentions, _, pooled_output = outputs
@@ -1264,10 +1305,11 @@ class ZenForSequenceClassification(ZenPreTrainedModel):
         if labels is not None:
             loss_fct = CrossEntropyLoss()
             loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
-            return loss
+            return loss, logits
         elif self.output_attentions:
             return all_attentions, logits
         return logits
+
 
 class ZenForTokenClassification(ZenPreTrainedModel):
     """ZEN model for token-level classification.
@@ -1313,45 +1355,36 @@ class ZenForTokenClassification(ZenPreTrainedModel):
         self.output_attentions = output_attentions
         self.num_labels = num_labels
         self.bert = ZenModel(config, output_attentions=output_attentions,
-                              keep_multihead_output=keep_multihead_output)
+                             keep_multihead_output=keep_multihead_output)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         self.classifier = nn.Linear(config.hidden_size, num_labels)
         self.apply(self.init_bert_weights)
 
-    def forward(self, input_ids, token_type_ids=None, attention_mask=None, labels=None, valid_ids=None,
-                attention_mask_label=None, ngram_ids=None, ngram_positions=None, head_mask=None):
-        outputs = self.bert(input_ids, ngram_ids, ngram_positions, token_type_ids, attention_mask,
+    def forward(self, input_ids, token_type_ids=None, attention_mask=None, labels=None,
+                ngram_ids=None, ngram_positions=None, head_mask=None,
+                ngram_token_type_ids=None, ngram_attention_mask=None):
+        outputs = self.bert(input_ids=input_ids, input_ngram_ids=ngram_ids, ngram_position_matrix=ngram_positions,
+                            token_type_ids=token_type_ids, attention_mask=attention_mask,
+                            ngram_attention_mask=ngram_attention_mask, ngram_token_type_ids=ngram_token_type_ids,
                             output_all_encoded_layers=False, head_mask=head_mask)
         if self.output_attentions:
             all_attentions, sequence_output, _ = outputs
         else:
             sequence_output, _ = outputs
 
-        batch_size, max_len, feat_dim = sequence_output.shape
-        valid_output = torch.zeros(batch_size, max_len, feat_dim, dtype=torch.float32, device=input_ids.device)
-
-        if self.num_labels == 38:
-            # just for POS to filter/mask input_ids=0
-            for i in range(batch_size):
-                temp = sequence_output[i][valid_ids[i] == 1]
-                valid_output[i][:temp.size(0)] = temp
-        else:
-            valid_output = sequence_output
-
-        sequence_output = self.dropout(valid_output)
+        sequence_output = self.dropout(sequence_output)
         logits = self.classifier(sequence_output)
 
         if labels is not None:
-            loss_fct = CrossEntropyLoss(ignore_index=0)
+            loss_fct = CrossEntropyLoss()
             # Only keep active parts of the loss
-            attention_mask_label = None
-            if attention_mask_label is not None:
-                active_loss = attention_mask_label.view(-1) == 1
+            if attention_mask is not None:
+                active_loss = attention_mask.view(-1) == 1
                 active_logits = logits.view(-1, self.num_labels)[active_loss]
                 active_labels = labels.view(-1)[active_loss]
                 loss = loss_fct(active_logits, active_labels)
             else:
                 loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
-            return loss
+            return loss, logits
         else:
             return logits

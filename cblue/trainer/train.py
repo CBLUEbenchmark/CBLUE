@@ -8,9 +8,10 @@ from torch.utils.data import Dataset, DataLoader
 
 from cblue.utils import seed_everything, ProgressBar, TokenRematch
 from cblue.metrics import sts_metric, qic_metric, qqr_metric, qtr_metric, \
-    ctc_metric, ee_metric, er_metric, re_metric, cdn_cls_metric
+    ctc_metric, ee_metric, er_metric, re_metric, cdn_cls_metric, cdn_num_metric
 from cblue.metrics import sts_commit_prediction, qic_commit_prediction, qtr_commit_prediction, \
     qqr_commit_prediction, ctc_commit_prediction, ee_commit_prediction, cdn_commit_prediction
+from cblue.models import convert_examples_to_features, save_zen_model
 
 
 class Trainer(object):
@@ -24,6 +25,7 @@ class Trainer(object):
             model_class,
             train_dataset=None,
             eval_dataset=None,
+            ngram_dict=None
     ):
 
         self.args = args
@@ -39,6 +41,7 @@ class Trainer(object):
 
         self.logger = logger
         self.model_class = model_class
+        self.ngram_dict = ngram_dict
 
     def train(self):
         args = self.args
@@ -164,6 +167,7 @@ class EETrainer(Trainer):
             model_class,
             train_dataset=None,
             eval_dataset=None,
+            ngram_dict=None
     ):
         super(EETrainer, self).__init__(
             args=args,
@@ -173,22 +177,32 @@ class EETrainer(Trainer):
             train_dataset=train_dataset,
             eval_dataset=eval_dataset,
             logger=logger,
-            model_class=model_class
+            model_class=model_class,
+            ngram_dict=ngram_dict
         )
 
     def training_step(self, model, item):
         model.train()
 
-        text1 = item[0]
-        labels = item[1].to(self.args.device)
+        input_ids = item[0].to(self.args.device)
+        token_type_ids = item[1].to(self.args.device)
+        attention_mask = item[2].to(self.args.device)
+        labels = item[3].to(self.args.device)
 
-        inputs = self.tokenizer(text1, padding='max_length', max_length=self.args.max_length,
-                                truncation=True, return_tensors='pt')
-        inputs['input_ids'] = inputs['input_ids'].to(self.args.device)
-        inputs['attention_mask'] = inputs['attention_mask'].to(self.args.device)
-        inputs['token_type_ids'] = inputs['token_type_ids'].to(self.args.device)
+        if self.args.model_type == 'zen':
+            input_ngram_ids = item[4].to(self.args.device)
+            ngram_attention_mask = item[5].to(self.args.device)
+            ngram_token_type_ids = item[6].to(self.args.device)
+            ngram_position_matrix = item[7].to(self.args.device)
 
-        outputs = model(labels=labels, **inputs)
+        if self.args.model_type == 'zen':
+            outputs = model(input_ids=input_ids, attention_mask=attention_mask, token_type_ids=token_type_ids,
+                            labels=labels, ngram_ids=input_ngram_ids, ngram_positions=ngram_position_matrix,
+                            ngram_attention_mask=ngram_attention_mask, ngram_token_type_ids=ngram_token_type_ids)
+        else:
+            outputs = model(labels=labels, input_ids=input_ids, token_type_ids=token_type_ids,
+                            attention_mask=attention_mask)
+
         loss = outputs[0]
         loss.backward()
 
@@ -208,19 +222,32 @@ class EETrainer(Trainer):
         for step, item in enumerate(eval_dataloader):
             model.eval()
 
-            text1 = item[0]
-            labels = item[1].to(args.device)
+            input_ids = item[0].to(self.args.device)
+            token_type_ids = item[1].to(self.args.device)
+            attention_mask = item[2].to(self.args.device)
+            labels = item[3].to(self.args.device)
 
-            inputs = self.tokenizer(text1, return_tensors='pt', padding='max_length',
-                                    truncation=True, max_length=self.args.max_length)
-            inputs['input_ids'] = inputs['input_ids'].to(self.args.device)
-            inputs['attention_mask'] = inputs['attention_mask'].to(self.args.device)
-            inputs['token_type_ids'] = inputs['token_type_ids'].to(self.args.device)
+            if args.model_type == 'zen':
+                input_ngram_ids = item[4].to(self.args.device)
+                ngram_attention_mask = item[5].to(self.args.device)
+                ngram_token_type_ids = item[6].to(self.args.device)
+                ngram_position_matrix = item[7].to(self.args.device)
 
             with torch.no_grad():
-                outputs = model(labels=labels, **inputs)
+                if self.args.model_type == 'zen':
+                    outputs = model(input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask,
+                                    labels=labels, ngram_ids=input_ngram_ids,
+                                    ngram_positions=ngram_position_matrix,
+                                    ngram_token_type_ids=ngram_token_type_ids,
+                                    ngram_attention_mask=ngram_attention_mask)
+                else:
+                    outputs = model(labels=labels, input_ids=input_ids, token_type_ids=token_type_ids,
+                                    attention_mask=attention_mask)
+
+                # outputs = model(labels=labels, **inputs)
                 loss, logits = outputs[:2]
-                active_index = inputs['attention_mask'].view(-1) == 1
+                # active_index = inputs['attention_mask'].view(-1) == 1
+                active_index = attention_mask.view(-1) == 1
                 active_labels = labels.view(-1)[active_index]
                 logits = logits.argmax(dim=-1)
                 active_logits = logits.view(-1)[active_index]
@@ -251,25 +278,41 @@ class EETrainer(Trainer):
         for step, item in enumerate(test_dataloader):
             model.eval()
 
-            text1 = item
+            input_ids = item[0].to(self.args.device)
+            token_type_ids = item[1].to(self.args.device)
+            attention_mask = item[2].to(self.args.device)
 
-            inputs = self.tokenizer(text1, return_tensors='pt', padding='max_length',
-                                    truncation=True, max_length=self.args.max_length)
-            inputs['input_ids'] = inputs['input_ids'].to(self.args.device)
-            inputs['attention_mask'] = inputs['attention_mask'].to(self.args.device)
-            inputs['token_type_ids'] = inputs['token_type_ids'].to(self.args.device)
+            if args.model_type == 'zen':
+                input_ngram_ids = item[3].to(self.args.device)
+                ngram_attention_mask = item[4].to(self.args.device)
+                ngram_token_type_ids = item[5].to(self.args.device)
+                ngram_position_matrix = item[6].to(self.args.device)
 
             with torch.no_grad():
-                outputs = model(**inputs)
-                logits = outputs[0].detach()
-                active_index = (inputs['attention_mask'] == 1).cpu()
+                if self.args.model_type == 'zen':
+                    outputs = model(input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask,
+                                    ngram_ids=input_ngram_ids,
+                                    ngram_positions=ngram_position_matrix,
+                                    ngram_token_type_ids=ngram_token_type_ids,
+                                    ngram_attention_mask=ngram_attention_mask)
+                else:
+                    outputs = model(input_ids=input_ids, token_type_ids=token_type_ids,
+                                    attention_mask=attention_mask)
+
+                if args.model_type == 'zen':
+                    logits = outputs.detach()
+                else:
+                    logits = outputs[0].detach()
+                # active_index = (inputs['attention_mask'] == 1).cpu()
+                active_index = attention_mask == 1
                 preds = logits.argmax(dim=-1).cpu()
 
                 for i in range(len(active_index)):
                     predictions.append(preds[i][active_index[i]].tolist())
             pbar(step=step, info="")
 
-        test_inputs = [list(text) for text in test_dataset.texts]
+        # test_inputs = [list(text) for text in test_dataset.texts]
+        test_inputs = test_dataset.texts
         predictions = [pred[1:-1] for pred in predictions]
         predicts = self.data_processor.extract_result(predictions, test_inputs)
         ee_commit_prediction(dataset=test_dataset, preds=predicts, output_dir=args.result_output_dir)
@@ -278,18 +321,27 @@ class EETrainer(Trainer):
         output_dir = os.path.join(self.args.output_dir, 'checkpoint-{}'.format(step))
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
-        model.save_pretrained(output_dir)
-        torch.save(self.args, os.path.join(output_dir, 'training_args.bin'))
+
+        if self.args.model_type == 'zen':
+            save_zen_model(output_dir, model=model, tokenizer=self.tokenizer,
+                           ngram_dict=self.ngram_dict, args=self.args)
+        else:
+            model.save_pretrained(output_dir)
+            torch.save(self.args, os.path.join(output_dir, 'training_args.bin'))
+            self.tokenizer.save_vocabulary(save_directory=output_dir)
         self.logger.info('Saving models checkpoint to %s', output_dir)
-        self.tokenizer.save_vocabulary(save_directory=output_dir)
 
     def _save_best_checkpoint(self, best_step):
         model = self.model_class.from_pretrained(os.path.join(self.args.output_dir, f'checkpoint-{best_step}'),
                                                  num_labels=self.data_processor.num_labels)
-        model.save_pretrained(self.args.output_dir)
-        torch.save(self.args, os.path.join(self.args.output_dir, 'training_args.bin'))
+        if self.args.model_type == 'zen':
+            save_zen_model(self.args.output_dir, model=model, tokenizer=self.tokenizer,
+                           ngram_dict=self.ngram_dict, args=self.args)
+        else:
+            model.save_pretrained(self.args.output_dir)
+            torch.save(self.args, os.path.join(self.args.output_dir, 'training_args.bin'))
+            self.tokenizer.save_vocabulary(save_directory=self.args.output_dir)
         self.logger.info('Saving models checkpoint to %s', self.args.output_dir)
-        self.tokenizer.save_vocabulary(save_directory=self.args.output_dir)
 
 
 class STSTrainer(Trainer):
@@ -303,6 +355,7 @@ class STSTrainer(Trainer):
             model_class,
             train_dataset=None,
             eval_dataset=None,
+            ngram_dict=None
     ):
         super(STSTrainer, self).__init__(
             args=args,
@@ -313,6 +366,7 @@ class STSTrainer(Trainer):
             eval_dataset=eval_dataset,
             logger=logger,
             model_class=model_class,
+            ngram_dict=ngram_dict
         )
 
     def training_step(self, model, item):
@@ -322,12 +376,23 @@ class STSTrainer(Trainer):
         text2 = item[1]
         labels = item[2].to(self.args.device)
 
-        inputs = self.tokenizer(text1, text2, return_tensors='pt', padding='max_length',
-                                truncation='longest_first', max_length=self.args.max_length)
+        if self.args.model_type == 'zen':
+            inputs = convert_examples_to_features(text1=text1, text2=text2, ngram_dict=self.ngram_dict,
+                                                  tokenizer=self.tokenizer, max_seq_length=self.args.max_length,
+                                                  return_tensors=True)
+        else:
+            inputs = self.tokenizer(text1, text2, return_tensors='pt', padding='max_length',
+                                    truncation='longest_first', max_length=self.args.max_length)
 
         inputs['input_ids'] = inputs['input_ids'].to(self.args.device)
         inputs['attention_mask'] = inputs['attention_mask'].to(self.args.device)
         inputs['token_type_ids'] = inputs['token_type_ids'].to(self.args.device)
+
+        if self.args.model_type == 'zen':
+            inputs['input_ngram_ids'] = inputs['input_ngram_ids'].to(self.args.device)
+            inputs['ngram_position_matrix'] = inputs['ngram_position_matrix'].to(self.args.device)
+            inputs['ngram_attention_mask'] = inputs['ngram_attention_mask'].to(self.args.device)
+            inputs['ngram_token_type_ids'] = inputs['ngram_token_type_ids'].to(self.args.device)
 
         # default using 'Transformers' library models.
         outputs = model(labels=labels, **inputs)
@@ -354,11 +419,22 @@ class STSTrainer(Trainer):
             text2 = item[1]
             labels = item[2].to(args.device)
 
-            inputs = self.tokenizer(text1, text2, return_tensors='pt', padding='max_length',
-                                    truncation='longest_first', max_length=self.args.max_length)
+            if self.args.model_type == 'zen':
+                inputs = convert_examples_to_features(text1=text1, text2=text2, ngram_dict=self.ngram_dict,
+                                                      tokenizer=self.tokenizer, max_seq_length=self.args.max_length,
+                                                      return_tensors=True)
+            else:
+                inputs = self.tokenizer(text1, text2, return_tensors='pt', padding='max_length',
+                                        truncation='longest_first', max_length=self.args.max_length)
             inputs['input_ids'] = inputs['input_ids'].to(self.args.device)
             inputs['attention_mask'] = inputs['attention_mask'].to(self.args.device)
             inputs['token_type_ids'] = inputs['token_type_ids'].to(self.args.device)
+
+            if self.args.model_type == 'zen':
+                inputs['input_ngram_ids'] = inputs['input_ngram_ids'].to(self.args.device)
+                inputs['ngram_position_matrix'] = inputs['ngram_position_matrix'].to(self.args.device)
+                inputs['ngram_attention_mask'] = inputs['ngram_attention_mask'].to(self.args.device)
+                inputs['ngram_token_type_ids'] = inputs['ngram_token_type_ids'].to(self.args.device)
 
             with torch.no_grad():
                 outputs = model(labels=labels, **inputs)
@@ -380,10 +456,15 @@ class STSTrainer(Trainer):
         output_dir = os.path.join(self.args.output_dir, 'checkpoint-{}'.format(step))
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
-        model.save_pretrained(output_dir)
-        torch.save(self.args, os.path.join(output_dir, 'training_args.bin'))
+
+        if self.args.model_type == 'zen':
+            save_zen_model(output_dir, model=model, tokenizer=self.tokenizer,
+                           ngram_dict=self.ngram_dict, args=self.args)
+        else:
+            model.save_pretrained(output_dir)
+            torch.save(self.args, os.path.join(output_dir, 'training_args.bin'))
+            self.tokenizer.save_vocabulary(save_directory=output_dir)
         self.logger.info('Saving models checkpoint to %s', output_dir)
-        self.tokenizer.save_vocabulary(save_directory=output_dir)
 
     def predict(self, test_dataset, model):
         args = self.args
@@ -403,15 +484,31 @@ class STSTrainer(Trainer):
             text1 = item[0]
             text2 = item[1]
 
-            inputs = self.tokenizer(text1, text2, return_tensors='pt', padding='max_length',
-                                    truncation='longest_first', max_length=self.args.max_length)
+            if self.args.model_type == 'zen':
+                inputs = convert_examples_to_features(text1=text1, text2=text2, ngram_dict=self.ngram_dict,
+                                                      tokenizer=self.tokenizer, max_seq_length=self.args.max_length,
+                                                      return_tensors=True)
+            else:
+                inputs = self.tokenizer(text1, text2, return_tensors='pt', padding='max_length',
+                                        truncation='longest_first', max_length=self.args.max_length)
+
+            if self.args.model_type == 'zen':
+                inputs['input_ngram_ids'] = inputs['input_ngram_ids'].to(self.args.device)
+                inputs['ngram_position_matrix'] = inputs['ngram_position_matrix'].to(self.args.device)
+                inputs['ngram_attention_mask'] = inputs['ngram_attention_mask'].to(self.args.device)
+                inputs['ngram_token_type_ids'] = inputs['ngram_token_type_ids'].to(self.args.device)
+
             inputs['input_ids'] = inputs['input_ids'].to(self.args.device)
             inputs['attention_mask'] = inputs['attention_mask'].to(self.args.device)
             inputs['token_type_ids'] = inputs['token_type_ids'].to(self.args.device)
 
             with torch.no_grad():
                 outputs = model(**inputs)
-                logits = outputs[0]
+
+                if args.model_type == 'zen':
+                    logits = outputs
+                else:
+                    logits = outputs[0]
 
             if preds is None:
                 preds = logits.detach().cpu().numpy()
@@ -428,10 +525,15 @@ class STSTrainer(Trainer):
     def _save_best_checkpoint(self, best_step):
         model = self.model_class.from_pretrained(os.path.join(self.args.output_dir, f'checkpoint-{best_step}'),
                                                  num_labels=self.data_processor.num_labels)
-        model.save_pretrained(self.args.output_dir)
-        torch.save(self.args, os.path.join(self.args.output_dir, 'training_args.bin'))
+
+        if self.args.model_type == 'zen':
+            save_zen_model(self.args.output_dir, model=model, tokenizer=self.tokenizer,
+                           ngram_dict=self.ngram_dict, args=self.args)
+        else:
+            model.save_pretrained(self.args.output_dir)
+            torch.save(self.args, os.path.join(self.args.output_dir, 'training_args.bin'))
+            self.tokenizer.save_vocabulary(save_directory=self.args.output_dir)
         self.logger.info('Saving models checkpoint to %s', self.args.output_dir)
-        self.tokenizer.save_vocabulary(save_directory=self.args.output_dir)
 
 
 class QICTrainer(Trainer):
@@ -445,6 +547,8 @@ class QICTrainer(Trainer):
             model_class,
             train_dataset=None,
             eval_dataset=None,
+            ngram_dict=None
+
     ):
         super(QICTrainer, self).__init__(
             args=args,
@@ -454,7 +558,8 @@ class QICTrainer(Trainer):
             train_dataset=train_dataset,
             eval_dataset=eval_dataset,
             logger=logger,
-            model_class=model_class
+            model_class=model_class,
+            ngram_dict=ngram_dict
         )
 
     def training_step(self, model, item):
@@ -462,8 +567,20 @@ class QICTrainer(Trainer):
 
         text1 = item[0]
         labels = item[1].to(self.args.device)
-        inputs = self.tokenizer(text1, padding='max_length', max_length=self.args.max_length,
-                                truncation=True, return_tensors='pt')
+
+        if self.args.model_type == 'zen':
+            inputs = convert_examples_to_features(text1=text1, ngram_dict=self.ngram_dict,
+                                                  tokenizer=self.tokenizer, max_seq_length=self.args.max_length,
+                                                  return_tensors=True)
+        else:
+            inputs = self.tokenizer(text1, padding='max_length', max_length=self.args.max_length,
+                                    truncation=True, return_tensors='pt')
+
+        if self.args.model_type == 'zen':
+            inputs['input_ngram_ids'] = inputs['input_ngram_ids'].to(self.args.device)
+            inputs['ngram_position_matrix'] = inputs['ngram_position_matrix'].to(self.args.device)
+            inputs['ngram_attention_mask'] = inputs['ngram_attention_mask'].to(self.args.device)
+            inputs['ngram_token_type_ids'] = inputs['ngram_token_type_ids'].to(self.args.device)
 
         inputs['input_ids'] = inputs['input_ids'].to(self.args.device)
         inputs['attention_mask'] = inputs['attention_mask'].to(self.args.device)
@@ -493,11 +610,22 @@ class QICTrainer(Trainer):
             text1 = item[0]
             labels = item[1].to(args.device)
 
-            inputs = self.tokenizer(text1, return_tensors='pt', padding='max_length',
-                                    truncation='longest_first', max_length=self.args.max_length)
+            if self.args.model_type == 'zen':
+                inputs = convert_examples_to_features(text1=text1, ngram_dict=self.ngram_dict,
+                                                      tokenizer=self.tokenizer, max_seq_length=self.args.max_length,
+                                                      return_tensors=True)
+            else:
+                inputs = self.tokenizer(text1, return_tensors='pt', padding='max_length',
+                                        truncation='longest_first', max_length=self.args.max_length)
             inputs['input_ids'] = inputs['input_ids'].to(self.args.device)
             inputs['attention_mask'] = inputs['attention_mask'].to(self.args.device)
             inputs['token_type_ids'] = inputs['token_type_ids'].to(self.args.device)
+
+            if self.args.model_type == 'zen':
+                inputs['input_ngram_ids'] = inputs['input_ngram_ids'].to(self.args.device)
+                inputs['ngram_position_matrix'] = inputs['ngram_position_matrix'].to(self.args.device)
+                inputs['ngram_attention_mask'] = inputs['ngram_attention_mask'].to(self.args.device)
+                inputs['ngram_token_type_ids'] = inputs['ngram_token_type_ids'].to(self.args.device)
 
             with torch.no_grad():
                 outputs = model(labels=labels, **inputs)
@@ -532,15 +660,29 @@ class QICTrainer(Trainer):
 
             text1 = item
 
-            inputs = self.tokenizer(text1, return_tensors='pt', padding='max_length',
-                                    truncation='longest_first', max_length=self.args.max_length)
+            if self.args.model_type == 'zen':
+                inputs = convert_examples_to_features(text1=text1, ngram_dict=self.ngram_dict,
+                                                      tokenizer=self.tokenizer, max_seq_length=self.args.max_length,
+                                                      return_tensors=True)
+            else:
+                inputs = self.tokenizer(text1, return_tensors='pt', padding='max_length',
+                                        truncation='longest_first', max_length=self.args.max_length)
+            if self.args.model_type == 'zen':
+                inputs['input_ngram_ids'] = inputs['input_ngram_ids'].to(self.args.device)
+                inputs['ngram_position_matrix'] = inputs['ngram_position_matrix'].to(self.args.device)
+                inputs['ngram_attention_mask'] = inputs['ngram_attention_mask'].to(self.args.device)
+                inputs['ngram_token_type_ids'] = inputs['ngram_token_type_ids'].to(self.args.device)
+
             inputs['input_ids'] = inputs['input_ids'].to(self.args.device)
             inputs['attention_mask'] = inputs['attention_mask'].to(self.args.device)
             inputs['token_type_ids'] = inputs['token_type_ids'].to(self.args.device)
 
             with torch.no_grad():
                 outputs = model(**inputs)
-                logits = outputs[0]
+                if self.args.model_type == 'zen':
+                    logits = outputs
+                else:
+                    logits = outputs[0]
 
             if preds is None:
                 preds = logits.detach().cpu().numpy()
@@ -558,18 +700,28 @@ class QICTrainer(Trainer):
         output_dir = os.path.join(self.args.output_dir, 'checkpoint-{}'.format(step))
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
-        model.save_pretrained(output_dir)
-        torch.save(self.args, os.path.join(output_dir, 'training_args.bin'))
+
+        if self.args.model_type == 'zen':
+            save_zen_model(output_dir, model=model, tokenizer=self.tokenizer,
+                           ngram_dict=self.ngram_dict, args=self.args)
+        else:
+            model.save_pretrained(output_dir)
+            torch.save(self.args, os.path.join(output_dir, 'training_args.bin'))
+            self.tokenizer.save_vocabulary(save_directory=output_dir)
         self.logger.info('Saving models checkpoint to %s', output_dir)
-        self.tokenizer.save_vocabulary(save_directory=output_dir)
 
     def _save_best_checkpoint(self, best_step):
         model = self.model_class.from_pretrained(os.path.join(self.args.output_dir, f'checkpoint-{best_step}'),
                                                  num_labels=self.data_processor.num_labels)
-        model.save_pretrained(self.args.output_dir)
-        torch.save(self.args, os.path.join(self.args.output_dir, 'training_args.bin'))
+
+        if self.args.model_type == 'zen':
+            save_zen_model(self.args.output_dir, model=model, tokenizer=self.tokenizer,
+                           ngram_dict=self.ngram_dict, args=self.args)
+        else:
+            model.save_pretrained(self.args.output_dir)
+            torch.save(self.args, os.path.join(self.args.output_dir, 'training_args.bin'))
+            self.tokenizer.save_vocabulary(save_directory=self.args.output_dir)
         self.logger.info('Saving models checkpoint to %s', self.args.output_dir)
-        self.tokenizer.save_vocabulary(save_directory=self.args.output_dir)
 
 
 class QQRTrainer(Trainer):
@@ -583,6 +735,7 @@ class QQRTrainer(Trainer):
             model_class,
             train_dataset=None,
             eval_dataset=None,
+            ngram_dict=None
     ):
         super(QQRTrainer, self).__init__(
             args=args,
@@ -592,7 +745,8 @@ class QQRTrainer(Trainer):
             train_dataset=train_dataset,
             eval_dataset=eval_dataset,
             logger=logger,
-            model_class=model_class
+            model_class=model_class,
+            ngram_dict=ngram_dict
         )
 
     def training_step(self, model, item):
@@ -601,8 +755,20 @@ class QQRTrainer(Trainer):
         text1 = item[0]
         text2 = item[1]
         labels = item[2].to(self.args.device)
-        inputs = self.tokenizer(text1, text2, padding='max_length', max_length=self.args.max_length,
-                                truncation='longest_first', return_tensors='pt')
+
+        if self.args.model_type == 'zen':
+            inputs = convert_examples_to_features(text1=text1, text2=text2, ngram_dict=self.ngram_dict,
+                                                  tokenizer=self.tokenizer, max_seq_length=self.args.max_length,
+                                                  return_tensors=True)
+        else:
+            inputs = self.tokenizer(text1, text2, return_tensors='pt', padding='max_length',
+                                    truncation='longest_first', max_length=self.args.max_length)
+
+        if self.args.model_type == 'zen':
+            inputs['input_ngram_ids'] = inputs['input_ngram_ids'].to(self.args.device)
+            inputs['ngram_position_matrix'] = inputs['ngram_position_matrix'].to(self.args.device)
+            inputs['ngram_attention_mask'] = inputs['ngram_attention_mask'].to(self.args.device)
+            inputs['ngram_token_type_ids'] = inputs['ngram_token_type_ids'].to(self.args.device)
 
         inputs['input_ids'] = inputs['input_ids'].to(self.args.device)
         inputs['attention_mask'] = inputs['attention_mask'].to(self.args.device)
@@ -633,8 +799,20 @@ class QQRTrainer(Trainer):
             text2 = item[1]
             labels = item[2].to(args.device)
 
-            inputs = self.tokenizer(text1, text2, return_tensors='pt', padding='max_length',
-                                    truncation='longest_first', max_length=self.args.max_length)
+            if self.args.model_type == 'zen':
+                inputs = convert_examples_to_features(text1=text1, text2=text2, ngram_dict=self.ngram_dict,
+                                                      tokenizer=self.tokenizer, max_seq_length=self.args.max_length,
+                                                      return_tensors=True)
+            else:
+                inputs = self.tokenizer(text1, text2, return_tensors='pt', padding='max_length',
+                                        truncation='longest_first', max_length=self.args.max_length)
+
+            if self.args.model_type == 'zen':
+                inputs['input_ngram_ids'] = inputs['input_ngram_ids'].to(self.args.device)
+                inputs['ngram_position_matrix'] = inputs['ngram_position_matrix'].to(self.args.device)
+                inputs['ngram_attention_mask'] = inputs['ngram_attention_mask'].to(self.args.device)
+                inputs['ngram_token_type_ids'] = inputs['ngram_token_type_ids'].to(self.args.device)
+
             inputs['input_ids'] = inputs['input_ids'].to(self.args.device)
             inputs['attention_mask'] = inputs['attention_mask'].to(self.args.device)
             inputs['token_type_ids'] = inputs['token_type_ids'].to(self.args.device)
@@ -673,15 +851,30 @@ class QQRTrainer(Trainer):
             text1 = item[0]
             text2 = item[1]
 
-            inputs = self.tokenizer(text1, text2, return_tensors='pt', padding='max_length',
-                                    truncation='longest_first', max_length=self.args.max_length)
+            if self.args.model_type == 'zen':
+                inputs = convert_examples_to_features(text1=text1, text2=text2, ngram_dict=self.ngram_dict,
+                                                      tokenizer=self.tokenizer, max_seq_length=self.args.max_length,
+                                                      return_tensors=True)
+            else:
+                inputs = self.tokenizer(text1, text2, return_tensors='pt', padding='max_length',
+                                        truncation='longest_first', max_length=self.args.max_length)
+
+            if self.args.model_type == 'zen':
+                inputs['input_ngram_ids'] = inputs['input_ngram_ids'].to(self.args.device)
+                inputs['ngram_position_matrix'] = inputs['ngram_position_matrix'].to(self.args.device)
+                inputs['ngram_attention_mask'] = inputs['ngram_attention_mask'].to(self.args.device)
+                inputs['ngram_token_type_ids'] = inputs['ngram_token_type_ids'].to(self.args.device)
+
             inputs['input_ids'] = inputs['input_ids'].to(self.args.device)
             inputs['attention_mask'] = inputs['attention_mask'].to(self.args.device)
             inputs['token_type_ids'] = inputs['token_type_ids'].to(self.args.device)
 
             with torch.no_grad():
                 outputs = model(**inputs)
-                logits = outputs[0]
+                if self.args.model_type == 'zen':
+                    logits = outputs
+                else:
+                    logits = outputs[0]
 
             if preds is None:
                 preds = logits.detach().cpu().numpy()
@@ -697,18 +890,26 @@ class QQRTrainer(Trainer):
         output_dir = os.path.join(self.args.output_dir, 'checkpoint-{}'.format(step))
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
-        model.save_pretrained(output_dir)
-        torch.save(self.args, os.path.join(output_dir, 'training_args.bin'))
+        if self.args.model_type == 'zen':
+            save_zen_model(output_dir, model=model, tokenizer=self.tokenizer,
+                           ngram_dict=self.ngram_dict, args=self.args)
+        else:
+            model.save_pretrained(output_dir)
+            torch.save(self.args, os.path.join(output_dir, 'training_args.bin'))
+            self.tokenizer.save_vocabulary(save_directory=output_dir)
         self.logger.info('Saving models checkpoint to %s', output_dir)
-        self.tokenizer.save_vocabulary(save_directory=output_dir)
 
     def _save_best_checkpoint(self, best_step):
         model = self.model_class.from_pretrained(os.path.join(self.args.output_dir, f'checkpoint-{best_step}'),
                                                  num_labels=self.data_processor.num_labels)
-        model.save_pretrained(self.args.output_dir)
-        torch.save(self.args, os.path.join(self.args.output_dir, 'training_args.bin'))
+        if self.args.model_type == 'zen':
+            save_zen_model(self.args.output_dir, model=model, tokenizer=self.tokenizer,
+                           ngram_dict=self.ngram_dict, args=self.args)
+        else:
+            model.save_pretrained(self.args.output_dir)
+            torch.save(self.args, os.path.join(self.args.output_dir, 'training_args.bin'))
+            self.tokenizer.save_vocabulary(save_directory=self.args.output_dir)
         self.logger.info('Saving models checkpoint to %s', self.args.output_dir)
-        self.tokenizer.save_vocabulary(save_directory=self.args.output_dir)
 
 
 class QTRTrainer(Trainer):
@@ -722,6 +923,7 @@ class QTRTrainer(Trainer):
             model_class,
             train_dataset=None,
             eval_dataset=None,
+            ngram_dict=None
     ):
         super(QTRTrainer, self).__init__(
             args=args,
@@ -731,7 +933,8 @@ class QTRTrainer(Trainer):
             train_dataset=train_dataset,
             eval_dataset=eval_dataset,
             logger=logger,
-            model_class=model_class
+            model_class=model_class,
+            ngram_dict=ngram_dict
         )
 
     def training_step(self, model, item):
@@ -740,8 +943,19 @@ class QTRTrainer(Trainer):
         text1 = item[0]
         text2 = item[1]
         labels = item[2].to(self.args.device)
-        inputs = self.tokenizer(text1, text2, padding='max_length', max_length=self.args.max_length,
-                                truncation='longest_first', return_tensors='pt')
+        if self.args.model_type == 'zen':
+            inputs = convert_examples_to_features(text1=text1, text2=text2, ngram_dict=self.ngram_dict,
+                                                  tokenizer=self.tokenizer, max_seq_length=self.args.max_length,
+                                                  return_tensors=True)
+        else:
+            inputs = self.tokenizer(text1, text2, return_tensors='pt', padding='max_length',
+                                    truncation='longest_first', max_length=self.args.max_length)
+
+        if self.args.model_type == 'zen':
+            inputs['input_ngram_ids'] = inputs['input_ngram_ids'].to(self.args.device)
+            inputs['ngram_position_matrix'] = inputs['ngram_position_matrix'].to(self.args.device)
+            inputs['ngram_attention_mask'] = inputs['ngram_attention_mask'].to(self.args.device)
+            inputs['ngram_token_type_ids'] = inputs['ngram_token_type_ids'].to(self.args.device)
 
         inputs['input_ids'] = inputs['input_ids'].to(self.args.device)
         inputs['attention_mask'] = inputs['attention_mask'].to(self.args.device)
@@ -772,8 +986,20 @@ class QTRTrainer(Trainer):
             text2 = item[1]
             labels = item[2].to(args.device)
 
-            inputs = self.tokenizer(text1, text2, return_tensors='pt', padding='max_length',
-                                    truncation='longest_first', max_length=self.args.max_length)
+            if self.args.model_type == 'zen':
+                inputs = convert_examples_to_features(text1=text1, text2=text2, ngram_dict=self.ngram_dict,
+                                                      tokenizer=self.tokenizer, max_seq_length=self.args.max_length,
+                                                      return_tensors=True)
+            else:
+                inputs = self.tokenizer(text1, text2, return_tensors='pt', padding='max_length',
+                                        truncation='longest_first', max_length=self.args.max_length)
+
+            if self.args.model_type == 'zen':
+                inputs['input_ngram_ids'] = inputs['input_ngram_ids'].to(self.args.device)
+                inputs['ngram_position_matrix'] = inputs['ngram_position_matrix'].to(self.args.device)
+                inputs['ngram_attention_mask'] = inputs['ngram_attention_mask'].to(self.args.device)
+                inputs['ngram_token_type_ids'] = inputs['ngram_token_type_ids'].to(self.args.device)
+
             inputs['input_ids'] = inputs['input_ids'].to(self.args.device)
             inputs['attention_mask'] = inputs['attention_mask'].to(self.args.device)
             inputs['token_type_ids'] = inputs['token_type_ids'].to(self.args.device)
@@ -812,15 +1038,30 @@ class QTRTrainer(Trainer):
             text1 = item[0]
             text2 = item[1]
 
-            inputs = self.tokenizer(text1, text2, return_tensors='pt', padding='max_length',
-                                    truncation='longest_first', max_length=self.args.max_length)
+            if self.args.model_type == 'zen':
+                inputs = convert_examples_to_features(text1=text1, text2=text2, ngram_dict=self.ngram_dict,
+                                                      tokenizer=self.tokenizer, max_seq_length=self.args.max_length,
+                                                      return_tensors=True)
+            else:
+                inputs = self.tokenizer(text1, text2, return_tensors='pt', padding='max_length',
+                                        truncation='longest_first', max_length=self.args.max_length)
+
+            if self.args.model_type == 'zen':
+                inputs['input_ngram_ids'] = inputs['input_ngram_ids'].to(self.args.device)
+                inputs['ngram_position_matrix'] = inputs['ngram_position_matrix'].to(self.args.device)
+                inputs['ngram_attention_mask'] = inputs['ngram_attention_mask'].to(self.args.device)
+                inputs['ngram_token_type_ids'] = inputs['ngram_token_type_ids'].to(self.args.device)
+
             inputs['input_ids'] = inputs['input_ids'].to(self.args.device)
             inputs['attention_mask'] = inputs['attention_mask'].to(self.args.device)
             inputs['token_type_ids'] = inputs['token_type_ids'].to(self.args.device)
 
             with torch.no_grad():
                 outputs = model(**inputs)
-                logits = outputs[0]
+                if self.args.model_type == 'zen':
+                    logits = outputs
+                else:
+                    logits = outputs[0]
 
             if preds is None:
                 preds = logits.detach().cpu().numpy()
@@ -838,18 +1079,26 @@ class QTRTrainer(Trainer):
         output_dir = os.path.join(self.args.output_dir, 'checkpoint-{}'.format(step))
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
-        model.save_pretrained(output_dir)
-        torch.save(self.args, os.path.join(output_dir, 'training_args.bin'))
+        if self.args.model_type == 'zen':
+            save_zen_model(output_dir, model=model, tokenizer=self.tokenizer,
+                           ngram_dict=self.ngram_dict, args=self.args)
+        else:
+            model.save_pretrained(output_dir)
+            torch.save(self.args, os.path.join(output_dir, 'training_args.bin'))
+            self.tokenizer.save_vocabulary(save_directory=output_dir)
         self.logger.info('Saving models checkpoint to %s', output_dir)
-        self.tokenizer.save_vocabulary(save_directory=output_dir)
 
     def _save_best_checkpoint(self, best_step):
         model = self.model_class.from_pretrained(os.path.join(self.args.output_dir, f'checkpoint-{best_step}'),
                                                  num_labels=self.data_processor.num_labels)
-        model.save_pretrained(self.args.output_dir)
-        torch.save(self.args, os.path.join(self.args.output_dir, 'training_args.bin'))
+        if self.args.model_type == 'zen':
+            save_zen_model(self.args.output_dir, model=model, tokenizer=self.tokenizer,
+                           ngram_dict=self.ngram_dict, args=self.args)
+        else:
+            model.save_pretrained(self.args.output_dir)
+            torch.save(self.args, os.path.join(self.args.output_dir, 'training_args.bin'))
+            self.tokenizer.save_vocabulary(save_directory=self.args.output_dir)
         self.logger.info('Saving models checkpoint to %s', self.args.output_dir)
-        self.tokenizer.save_vocabulary(save_directory=self.args.output_dir)
 
 
 class CTCTrainer(Trainer):
@@ -863,6 +1112,7 @@ class CTCTrainer(Trainer):
             model_class,
             train_dataset=None,
             eval_dataset=None,
+            ngram_dict=None
     ):
         super(CTCTrainer, self).__init__(
             args=args,
@@ -872,7 +1122,8 @@ class CTCTrainer(Trainer):
             train_dataset=train_dataset,
             eval_dataset=eval_dataset,
             logger=logger,
-            model_class=model_class
+            model_class=model_class,
+            ngram_dict=ngram_dict
         )
 
     def training_step(self, model, item):
@@ -880,8 +1131,19 @@ class CTCTrainer(Trainer):
 
         text1 = item[0]
         labels = item[1].to(self.args.device)
-        inputs = self.tokenizer(text1, padding='max_length', max_length=self.args.max_length,
-                                truncation=True, return_tensors='pt')
+        if self.args.model_type == 'zen':
+            inputs = convert_examples_to_features(text1=text1, ngram_dict=self.ngram_dict,
+                                                  tokenizer=self.tokenizer, max_seq_length=self.args.max_length,
+                                                  return_tensors=True)
+        else:
+            inputs = self.tokenizer(text1, padding='max_length', max_length=self.args.max_length,
+                                    truncation=True, return_tensors='pt')
+
+        if self.args.model_type == 'zen':
+            inputs['input_ngram_ids'] = inputs['input_ngram_ids'].to(self.args.device)
+            inputs['ngram_position_matrix'] = inputs['ngram_position_matrix'].to(self.args.device)
+            inputs['ngram_attention_mask'] = inputs['ngram_attention_mask'].to(self.args.device)
+            inputs['ngram_token_type_ids'] = inputs['ngram_token_type_ids'].to(self.args.device)
 
         inputs['input_ids'] = inputs['input_ids'].to(self.args.device)
         inputs['attention_mask'] = inputs['attention_mask'].to(self.args.device)
@@ -911,8 +1173,20 @@ class CTCTrainer(Trainer):
             text1 = item[0]
             labels = item[1].to(args.device)
 
-            inputs = self.tokenizer(text1, return_tensors='pt', padding='max_length',
-                                    truncation='longest_first', max_length=self.args.max_length)
+            if self.args.model_type == 'zen':
+                inputs = convert_examples_to_features(text1=text1, ngram_dict=self.ngram_dict,
+                                                      tokenizer=self.tokenizer, max_seq_length=self.args.max_length,
+                                                      return_tensors=True)
+            else:
+                inputs = self.tokenizer(text1, padding='max_length', max_length=self.args.max_length,
+                                        truncation=True, return_tensors='pt')
+
+            if self.args.model_type == 'zen':
+                inputs['input_ngram_ids'] = inputs['input_ngram_ids'].to(self.args.device)
+                inputs['ngram_position_matrix'] = inputs['ngram_position_matrix'].to(self.args.device)
+                inputs['ngram_attention_mask'] = inputs['ngram_attention_mask'].to(self.args.device)
+                inputs['ngram_token_type_ids'] = inputs['ngram_token_type_ids'].to(self.args.device)
+
             inputs['input_ids'] = inputs['input_ids'].to(self.args.device)
             inputs['attention_mask'] = inputs['attention_mask'].to(self.args.device)
             inputs['token_type_ids'] = inputs['token_type_ids'].to(self.args.device)
@@ -950,15 +1224,30 @@ class CTCTrainer(Trainer):
 
             text1 = item
 
-            inputs = self.tokenizer(text1, return_tensors='pt', padding='max_length',
-                                    truncation='longest_first', max_length=self.args.max_length)
+            if self.args.model_type == 'zen':
+                inputs = convert_examples_to_features(text1=text1, ngram_dict=self.ngram_dict,
+                                                      tokenizer=self.tokenizer, max_seq_length=self.args.max_length,
+                                                      return_tensors=True)
+            else:
+                inputs = self.tokenizer(text1, padding='max_length', max_length=self.args.max_length,
+                                        truncation=True, return_tensors='pt')
+
+            if self.args.model_type == 'zen':
+                inputs['input_ngram_ids'] = inputs['input_ngram_ids'].to(self.args.device)
+                inputs['ngram_position_matrix'] = inputs['ngram_position_matrix'].to(self.args.device)
+                inputs['ngram_attention_mask'] = inputs['ngram_attention_mask'].to(self.args.device)
+                inputs['ngram_token_type_ids'] = inputs['ngram_token_type_ids'].to(self.args.device)
+
             inputs['input_ids'] = inputs['input_ids'].to(self.args.device)
             inputs['attention_mask'] = inputs['attention_mask'].to(self.args.device)
             inputs['token_type_ids'] = inputs['token_type_ids'].to(self.args.device)
 
             with torch.no_grad():
                 outputs = model(**inputs)
-                logits = outputs[0]
+                if args.model_type == 'zen':
+                    logits = outputs
+                else:
+                    logits = outputs[0]
 
             if preds is None:
                 preds = logits.detach().cpu().numpy()
@@ -976,18 +1265,26 @@ class CTCTrainer(Trainer):
         output_dir = os.path.join(self.args.output_dir, 'checkpoint-{}'.format(step))
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
-        model.save_pretrained(output_dir)
-        torch.save(self.args, os.path.join(output_dir, 'training_args.bin'))
+        if self.args.model_type == 'zen':
+            save_zen_model(output_dir, model=model, tokenizer=self.tokenizer,
+                           ngram_dict=self.ngram_dict, args=self.args)
+        else:
+            model.save_pretrained(output_dir)
+            torch.save(self.args, os.path.join(output_dir, 'training_args.bin'))
+            self.tokenizer.save_vocabulary(save_directory=output_dir)
         self.logger.info('Saving models checkpoint to %s', output_dir)
-        self.tokenizer.save_vocabulary(save_directory=output_dir)
 
     def _save_best_checkpoint(self, best_step):
         model = self.model_class.from_pretrained(os.path.join(self.args.output_dir, f'checkpoint-{best_step}'),
                                                  num_labels=self.data_processor.num_labels)
-        model.save_pretrained(self.args.output_dir)
-        torch.save(self.args, os.path.join(self.args.output_dir, 'training_args.bin'))
+        if self.args.model_type == 'zen':
+            save_zen_model(self.args.output_dir, model=model, tokenizer=self.tokenizer,
+                           ngram_dict=self.ngram_dict, args=self.args)
+        else:
+            model.save_pretrained(self.args.output_dir)
+            torch.save(self.args, os.path.join(self.args.output_dir, 'training_args.bin'))
+            self.tokenizer.save_vocabulary(save_directory=self.args.output_dir)
         self.logger.info('Saving models checkpoint to %s', self.args.output_dir)
-        self.tokenizer.save_vocabulary(save_directory=self.args.output_dir)
 
 
 class ERTrainer(Trainer):
@@ -1001,6 +1298,7 @@ class ERTrainer(Trainer):
             model_class,
             train_dataset=None,
             eval_dataset=None,
+            ngram_dict=None
     ):
         super(ERTrainer, self).__init__(
             args=args,
@@ -1010,7 +1308,8 @@ class ERTrainer(Trainer):
             train_dataset=train_dataset,
             eval_dataset=eval_dataset,
             logger=logger,
-            model_class=model_class
+            model_class=model_class,
+            ngram_dict=ngram_dict
         )
 
         self.loss_fn = nn.BCELoss()
@@ -1018,7 +1317,11 @@ class ERTrainer(Trainer):
     def training_step(self, model, item):
         model.train()
 
-        input_ids, token_type_ids, attention_mask, sub_start_label, sub_end_label, obj_start_label, obj_end_label = item
+        if self.args.model_type == 'zen':
+            input_ids, token_type_ids, attention_mask, sub_start_label, sub_end_label, obj_start_label, \
+            obj_end_label, input_ngram_ids, ngram_attention_mask, ngram_token_type_ids, ngram_position_matrix = item
+        else:
+            input_ids, token_type_ids, attention_mask, sub_start_label, sub_end_label, obj_start_label, obj_end_label = item
         input_ids = input_ids.to(self.args.device)
         token_type_ids = token_type_ids.to(self.args.device)
         attention_mask = attention_mask.to(self.args.device)
@@ -1027,7 +1330,23 @@ class ERTrainer(Trainer):
         obj_start_label = obj_start_label.to(self.args.device)
         obj_end_label = obj_end_label.to(self.args.device)
 
-        sub_start_logits, sub_end_logits, obj_start_logits, obj_end_logits = model(input_ids, token_type_ids, attention_mask)
+        if self.args.model_type == 'zen':
+            input_ngram_ids = input_ngram_ids.to(self.args.device)
+            ngram_token_type_ids = ngram_token_type_ids.to(self.args.device)
+            ngram_attention_mask = ngram_attention_mask.to(self.args.device)
+            ngram_position_matrix = ngram_position_matrix.to(self.args.device)
+
+        if self.args.model_type == 'zen':
+            sub_start_logits, sub_end_logits, obj_start_logits, obj_end_logits = model(input_ids, token_type_ids,
+                                                                                       attention_mask,
+                                                                                       input_ngram_ids=input_ngram_ids,
+                                                                                       ngram_attention_mask=ngram_attention_mask,
+                                                                                       ngram_position_matrix=ngram_position_matrix,
+                                                                                       ngram_token_type_ids=ngram_token_type_ids)
+        else:
+            sub_start_logits, sub_end_logits, obj_start_logits, obj_end_logits = model(input_ids,
+                                                                                       token_type_ids,
+                                                                                       attention_mask)
 
         active_index = attention_mask.view(-1) == 1
         sub_start_loss = self.cal_loss(sub_start_logits, sub_start_label, active_index)
@@ -1066,7 +1385,11 @@ class ERTrainer(Trainer):
         for step, item in enumerate(eval_dataloader):
             model.eval()
 
-            input_ids, token_type_ids, attention_mask, sub_start_label, sub_end_label, obj_start_label, obj_end_label = item
+            if self.args.model_type == 'zen':
+                input_ids, token_type_ids, attention_mask, sub_start_label, sub_end_label, obj_start_label, \
+                obj_end_label, input_ngram_ids, ngram_attention_mask,  ngram_token_type_ids, ngram_position_matrix = item
+            else:
+                input_ids, token_type_ids, attention_mask, sub_start_label, sub_end_label, obj_start_label, obj_end_label = item
             input_ids = input_ids.to(self.args.device)
             token_type_ids = token_type_ids.to(self.args.device)
             attention_mask = attention_mask.to(self.args.device)
@@ -1075,9 +1398,25 @@ class ERTrainer(Trainer):
             obj_start_label = obj_start_label.to(self.args.device)
             obj_end_label = obj_end_label.to(self.args.device)
 
+            if self.args.model_type == 'zen':
+                input_ngram_ids = input_ngram_ids.to(self.args.device)
+                ngram_token_type_ids = ngram_token_type_ids.to(self.args.device)
+                ngram_attention_mask = ngram_attention_mask.to(self.args.device)
+                ngram_position_matrix = ngram_position_matrix.to(self.args.device)
+
             with torch.no_grad():
-                sub_start_logits, sub_end_logits, obj_start_logits, obj_end_logits = model(input_ids, token_type_ids,
-                                                                                           attention_mask)
+                if args.model_type == 'zen':
+                    sub_start_logits, sub_end_logits, obj_start_logits, obj_end_logits = model(input_ids,
+                                                                                               token_type_ids,
+                                                                                               attention_mask,
+                                                                                               input_ngram_ids=input_ngram_ids,
+                                                                                               ngram_attention_mask=ngram_attention_mask,
+                                                                                               ngram_position_matrix=ngram_position_matrix,
+                                                                                               ngram_token_type_ids=ngram_token_type_ids)
+                else:
+                    sub_start_logits, sub_end_logits, obj_start_logits, obj_end_logits = model(input_ids,
+                                                                                               token_type_ids,
+                                                                                               attention_mask)
 
             active_index = attention_mask.view(-1) == 1
             sub_start_preds.extend((sub_start_logits.detach().view(-1) >= 0.5).cpu().long()[active_index])
@@ -1112,14 +1451,33 @@ class ERTrainer(Trainer):
             for step, item in enumerate(test_dataloader):
                 model.eval()
 
-                input_ids, token_type_ids, attention_mask = item
+                if args.model_type == 'zen':
+                    input_ids, token_type_ids, attention_mask, input_ngram_ids,  ngram_attention_mask, ngram_token_type_ids, ngram_position_matrix = item
+                else:
+                    input_ids, token_type_ids, attention_mask = item
                 input_ids = input_ids.to(self.args.device)
                 token_type_ids = token_type_ids.to(self.args.device)
                 attention_mask = attention_mask.to(self.args.device)
 
+                if self.args.model_type == 'zen':
+                    input_ngram_ids = input_ngram_ids.to(self.args.device)
+                    ngram_token_type_ids = ngram_token_type_ids.to(self.args.device)
+                    ngram_attention_mask = ngram_attention_mask.to(self.args.device)
+                    ngram_position_matrix = ngram_position_matrix.to(self.args.device)
+
                 with torch.no_grad():
-                    sub_start_logits, sub_end_logits, obj_start_logits, obj_end_logits = model(input_ids, token_type_ids,
-                                                                                               attention_mask)
+                    if args.model_type == 'zen':
+                        sub_start_logits, sub_end_logits, obj_start_logits, obj_end_logits = model(input_ids, token_type_ids,
+                                                                                                   attention_mask,
+                                                                                                   input_ngram_ids=input_ngram_ids,
+                                                                                                   ngram_attention_mask=ngram_attention_mask,
+                                                                                                   ngram_position_matrix=ngram_position_matrix,
+                                                                                                   ngram_token_type_ids=ngram_token_type_ids)
+                    else:
+                        sub_start_logits, sub_end_logits, obj_start_logits, obj_end_logits = model(input_ids,
+                                                                                                   token_type_ids,
+                                                                                                   attention_mask)
+
                     text = test_dataset.texts[step]
                     text_start_id, text_end_id = 1, attention_mask.sum().int().item()  # end+1
                     text_mapping = TokenRematch().rematch(text, self.tokenizer.tokenize(text))
@@ -1138,8 +1496,12 @@ class ERTrainer(Trainer):
             os.makedirs(output_dir)
         torch.save(model.state_dict(), os.path.join(output_dir, 'pytorch_model.pt'))
         self.logger.info('Saving models checkpoint to %s', output_dir)
-        model.encoder.save_pretrained(output_dir)
-        self.tokenizer.save_vocabulary(save_directory=output_dir)
+
+        if self.args.model_type == 'zen':
+            save_zen_model(output_dir, model.encoder, self.tokenizer, self.ngram_dict, self.args)
+        else:
+            model.encoder.save_pretrained(output_dir)
+            self.tokenizer.save_vocabulary(save_directory=output_dir)
 
     def _save_best_checkpoint(self, best_step):
         pass
@@ -1155,7 +1517,8 @@ class RETrainer(Trainer):
             logger,
             model_class,
             train_dataset=None,
-            eval_dataset=None
+            eval_dataset=None,
+            ngram_dict=None
     ):
         super(RETrainer, self).__init__(
             args=args,
@@ -1165,18 +1528,35 @@ class RETrainer(Trainer):
             train_dataset=train_dataset,
             eval_dataset=eval_dataset,
             logger=logger,
-            model_class=model_class
+            model_class=model_class,
+            ngram_dict=ngram_dict
         )
 
     def training_step(self, model, item):
         model.train()
 
-        input_ids, token_type_ids, attention_mask, flag, label = item
+        if self.args.model_type == 'zen':
+            input_ids, token_type_ids, attention_mask, flag, label, input_ngram_ids, \
+            ngram_attention_mask, ngram_token_type_ids, ngram_position_matrix = item
+        else:
+            input_ids, token_type_ids, attention_mask, flag, label = item
+
         input_ids, token_type_ids, attention_mask, flag, label = input_ids.to(self.args.device), \
                                                                  token_type_ids.to(self.args.device), \
                                                                  attention_mask.to(self.args.device), \
                                                                  flag.to(self.args.device), label.to(self.args.device)
-        loss, logits = model(input_ids, token_type_ids, attention_mask, flag, label)
+
+        if self.args.model_type == 'zen':
+            input_ngram_ids = input_ngram_ids.to(self.args.device)
+            ngram_position_matrix = ngram_position_matrix.to(self.args.device)
+            ngram_attention_mask = ngram_attention_mask.to(self.args.device)
+            ngram_token_type_ids = ngram_token_type_ids.to(self.args.device)
+
+            loss, logits = model(input_ids, token_type_ids, attention_mask, flag, label,
+                                 input_ngram_ids=input_ngram_ids, ngram_attention_mask=ngram_attention_mask,
+                                 ngram_position_matrix=ngram_position_matrix, ngram_token_type_ids=ngram_token_type_ids)
+        else:
+            loss, logits = model(input_ids, token_type_ids, attention_mask, flag, label)
         loss.backward()
 
         return loss.detach()
@@ -1195,13 +1575,30 @@ class RETrainer(Trainer):
         for step, item in enumerate(eval_dataloader):
             model.eval()
 
-            input_ids, token_type_ids, attention_mask, flag, label = item
+            if self.args.model_type == 'zen':
+                input_ids, token_type_ids, attention_mask, flag, label, input_ngram_ids, \
+                ngram_attention_mask, ngram_token_type_ids, ngram_position_matrix = item
+            else:
+                input_ids, token_type_ids, attention_mask, flag, label = item
+
             input_ids, token_type_ids, attention_mask, flag, label = input_ids.to(self.args.device), \
                                                                      token_type_ids.to(self.args.device), \
                                                                      attention_mask.to(self.args.device), \
                                                                      flag.to(self.args.device), label.to(self.args.device)
+
             with torch.no_grad():
-                loss, logits = model(input_ids, token_type_ids, attention_mask, flag, label)
+                if self.args.model_type == 'zen':
+                    input_ngram_ids = input_ngram_ids.to(self.args.device)
+                    ngram_position_matrix = ngram_position_matrix.to(self.args.device)
+                    ngram_attention_mask = ngram_attention_mask.to(self.args.device)
+                    ngram_token_type_ids = ngram_token_type_ids.to(self.args.device)
+
+                    loss, logits = model(input_ids, token_type_ids, attention_mask, flag, label,
+                                         input_ngram_ids=input_ngram_ids, ngram_attention_mask=ngram_attention_mask,
+                                         ngram_position_matrix=ngram_position_matrix,
+                                         ngram_token_type_ids=ngram_token_type_ids)
+                else:
+                    loss, logits = model(input_ids, token_type_ids, attention_mask, flag, label)
 
             if preds is None:
                 preds = logits.detach().cpu().numpy()
@@ -1227,17 +1624,36 @@ class RETrainer(Trainer):
                 results, outputs = self.data_processor.build_text(data)
                 spo_list = [re['spo_list'] for re in results]
                 temp_re_dataset = re_dataset_class(outputs, data_processor=self.data_processor,
-                                                   tokenizer=self.tokenizer, max_length=args.max_length, mode="test")
+                                                   tokenizer=self.tokenizer, max_length=args.max_length, mode="test",
+                                                   model_type=args.model_type, ngram_dict=self.ngram_dict)
                 logits = []
                 with torch.no_grad():
-                    for input_ids, token_type_ids, attention_mask, flag in temp_re_dataset:
+                    for item in temp_re_dataset:
+                        if self.args.model_type == 'zen':
+                            input_ids, token_type_ids, attention_mask, flag, input_ngram_ids, ngram_attention_mask, ngram_token_type_ids, ngram_position_matrix = item
+                        else:
+                            input_ids, token_type_ids, attention_mask, flag = item
                         input_ids, token_type_ids, attention_mask, flag = input_ids.to(args.device), \
                                                                           token_type_ids.to(args.device), \
                                                                           attention_mask.to(args.device), \
                                                                           flag.to(args.device)
-                        logit = model(input_ids=input_ids.view(1, -1), token_type_ids=token_type_ids.view(1, -1),
-                                      attention_mask=attention_mask.view(1, -1),
-                                      flag=flag.view(1, -1))  # batch, labels
+                        if args.model_type == 'zen':
+                            input_ngram_ids = input_ngram_ids.to(self.args.device)
+                            ngram_position_matrix = ngram_position_matrix.to(self.args.device)
+                            ngram_attention_mask = ngram_attention_mask.to(self.args.device)
+                            ngram_token_type_ids = ngram_token_type_ids.to(self.args.device)
+
+                            ngram_max_length = self.ngram_dict.max_ngram_in_seq
+
+                            logit = model(input_ids=input_ids.view(1, -1), token_type_ids=token_type_ids.view(1, -1),
+                                          attention_mask=attention_mask.view(1, -1), flag=flag.view(1, -1),
+                                          input_ngram_ids=input_ngram_ids.view(1, -1), ngram_token_type_ids=ngram_token_type_ids.view(1, -1),
+                                          ngram_attention_mask=ngram_attention_mask.view(1, -1),
+                                          ngram_position_matrix=ngram_position_matrix.view(1, ngram_max_length, ngram_max_length))
+                        else:
+                            logit = model(input_ids=input_ids.view(1, -1), token_type_ids=token_type_ids.view(1, -1),
+                                          attention_mask=attention_mask.view(1, -1),
+                                          flag=flag.view(1, -1))  # batch, labels
                         logit = logit.argmax(dim=-1).squeeze(-1)  # batch,
                         logits.append(logit.detach().cpu().item())
                 for i in range(len(temp_re_dataset)):
@@ -1282,8 +1698,11 @@ class RETrainer(Trainer):
             os.makedirs(output_dir)
         torch.save(model.state_dict(), os.path.join(output_dir, 'pytorch_model.pt'))
         self.logger.info('Saving models checkpoint to %s', output_dir)
-        model.encoder.save_pretrained(output_dir)
-        self.tokenizer.save_vocabulary(save_directory=output_dir)
+        if self.args.model_type == 'zen':
+            save_zen_model(output_dir, model.encoder, self.tokenizer, self.ngram_dict, self.args)
+        else:
+            model.encoder.save_pretrained(output_dir)
+            self.tokenizer.save_vocabulary(save_directory=output_dir)
 
     def _save_best_checkpoint(self, best_step):
         pass
@@ -1299,8 +1718,10 @@ class CDNForCLSTrainer(Trainer):
             logger,
             model_class,
             recall_orig_eval_samples=None,
+            recall_orig_eval_samples_scores=None,
             train_dataset=None,
             eval_dataset=None,
+            ngram_dict=None
     ):
         super(CDNForCLSTrainer, self).__init__(
             args=args,
@@ -1310,10 +1731,12 @@ class CDNForCLSTrainer(Trainer):
             train_dataset=train_dataset,
             eval_dataset=eval_dataset,
             logger=logger,
-            model_class=model_class
+            model_class=model_class,
+            ngram_dict=ngram_dict
         )
 
         self.recall_orig_eval_samples = recall_orig_eval_samples
+        self.recall_orig_eval_samples_scores = recall_orig_eval_samples_scores
 
     def training_step(self, model, item):
         model.train()
@@ -1342,63 +1765,17 @@ class CDNForCLSTrainer(Trainer):
         num_examples = len(eval_dataloader.dataset)
 
         preds = None
+        labels = None
 
         logger.info("***** Running evaluation *****")
         logger.info("Num samples %d", num_examples)
+        pbar = ProgressBar(n_total=len(eval_dataloader), desc='Evaluation')
         for step, item in enumerate(eval_dataloader):
-            pbar = ProgressBar(n_total=len(eval_dataloader), desc='Evaluation')
             model.eval()
 
             text1 = item[0]
             text2 = item[1]
-
-            inputs = self.tokenizer(text1, text2, return_tensors='pt', padding='max_length',
-                                    truncation='longest_first', max_length=self.args.max_length)
-            inputs['input_ids'] = inputs['input_ids'].to(self.args.device)
-            inputs['attention_mask'] = inputs['attention_mask'].to(self.args.device)
-            inputs['token_type_ids'] = inputs['token_type_ids'].to(self.args.device)
-
-            with torch.no_grad():
-                outputs = model(**inputs)
-                logits = outputs[0]
-
-            if preds is None:
-                preds = logits.detach().cpu()
-            else:
-                preds = torch.cat([preds, logits.detach().cpu()], dim=0)
-
-            pbar(step, info="")
-
-        # preds = np.argmax(preds, axis=1)
-        preds = preds.view(len(preds) // args.recall_k, args.recall_k, 2).softmax(dim=-1)
-        preds = preds[:, :, 1]
-
-        preds_topk = preds.topk(5, dim=-1)
-        preds_indices = preds_topk.indices
-        preds_values = (preds_topk.values >= 0.5).long()
-
-        p, r, f1 = cdn_cls_metric(preds_values, preds_indices, self.recall_orig_eval_samples['recall_label'],
-                                  self.recall_orig_eval_samples['label'])
-        logger.info("%s-%s precision: %s - recall: %s - f1 score: %s", args.task_name, args.model_name, p, r, f1)
-        return f1
-
-    def predict(self, test_dataset, model):
-        args = self.args
-        logger = self.logger
-        test_dataloader = self.get_test_dataloader(test_dataset)
-        num_examples = len(test_dataloader.dataset)
-        model.to(args.device)
-
-        preds = None
-
-        logger.info("***** Running prediction *****")
-        logger.info("Num samples %d", num_examples)
-        for step, item in enumerate(test_dataloader):
-            pbar = ProgressBar(n_total=len(test_dataloader), desc='Evaluation')
-            model.eval()
-
-            text1 = item[0]
-            text2 = item[1]
+            label = item[2].to(args.device)
 
             inputs = self.tokenizer(text1, text2, return_tensors='pt', padding='max_length',
                                     truncation='longest_first', max_length=self.args.max_length)
@@ -1412,16 +1789,73 @@ class CDNForCLSTrainer(Trainer):
 
             if preds is None:
                 preds = logits.detach().cpu().numpy()
+                labels = label.cpu().numpy()
             else:
-                preds = np.append(preds, logits.detach().cpu().numpy(), axis=0)
+                preds = np.append(preds, logits.detach().cpu(), axis=0)
+                labels = np.append(labels, label.detach().cpu().numpy(), axis=0)
 
             pbar(step, info="")
 
         preds = np.argmax(preds, axis=1)
+        # preds = preds.view(len(preds) // args.recall_k, args.recall_k, 2).softmax(dim=-1)
+        # preds = preds[:, :, 1]
+
+        # recall_sample_ids = torch.tensor(self.recall_orig_eval_samples['label'], requires_grad=False)
+        # recall_sample_score = torch.tensor(self.recall_orig_eval_samples_scores, requires_grad=False)
+
+        # preds_topk = preds.topk(5, dim=-1)
+        # preds_indices = preds_topk.indices
+        # preds_values = (preds_topk.values >= 0.5).long()
+
+        p, r, f1, _ = cdn_cls_metric(preds, labels)
+        logger.info("%s-%s precision: %s - recall: %s - f1 score: %s", args.task_name, args.model_name, p, r, f1)
+        return f1
+
+    def predict(self, test_dataset, model):
+        args = self.args
+        logger = self.logger
+        test_dataset.text1 = test_dataset.text1
+        test_dataset.text2 = test_dataset.text2
+        test_dataloader = self.get_test_dataloader(test_dataset)
+        num_examples = len(test_dataloader.dataset)
+        model.to(args.device)
+
+        preds = None
+
+        logger.info("***** Running prediction *****")
+        logger.info("Num samples %d", num_examples)
+        pbar = ProgressBar(n_total=len(test_dataloader), desc='Evaluation')
+        for step, item in enumerate(test_dataloader):
+            model.eval()
+
+            text1 = item[0]
+            text2 = item[1]
+
+            inputs = self.tokenizer(text1, text2, return_tensors='pt', padding='max_length',
+                                    truncation='longest_first', max_length=self.args.max_length)
+            inputs['input_ids'] = inputs['input_ids'].to(self.args.device)
+            inputs['attention_mask'] = inputs['attention_mask'].to(self.args.device)
+            inputs['token_type_ids'] = inputs['token_type_ids'].to(self.args.device)
+
+            with torch.no_grad():
+                outputs = model(**inputs)
+                logits = outputs[0]
+
+            if preds is None:
+                preds = logits.detach().softmax(-1)[:, 1].cpu().numpy()
+            else:
+                preds = np.append(preds, logits.detach().softmax(-1)[:, 1].cpu().numpy(), axis=0)
+
+            pbar(step, info="")
+
         preds = preds.reshape(len(preds) // args.recall_k, args.recall_k)
-        cdn_commit_prediction(text=self.recall_orig_eval_samples['text'], preds=preds,
-                              recall_labels=self.recall_orig_eval_samples['recall_label'],
-                              output_dir=args.result_output_dir, id2label=self.data_processor.id2label)
+        # preds = np.argmax(preds, axis=1)
+        # preds = preds.reshape(len(preds) // args.recall_k, args.recall_k)
+        np.save(os.path.join(args.result_output_dir, f'cdn_test_preds.npy'), preds)
+        # cdn_commit_prediction(text=self.recall_orig_eval_samples['text'], preds=preds,
+        #                       recall_labels=self.recall_orig_eval_samples['recall_label'],
+        #                       output_dir=args.result_output_dir, id2label=self.data_processor.id2label)
+        return preds
 
     def _save_checkpoint(self, model, step):
         output_dir = os.path.join(self.args.output_dir, 'checkpoint-{}'.format(step))
@@ -1435,10 +1869,13 @@ class CDNForCLSTrainer(Trainer):
     def _save_best_checkpoint(self, best_step):
         model = self.model_class.from_pretrained(os.path.join(self.args.output_dir, f'checkpoint-{best_step}'),
                                                  num_labels=self.data_processor.num_labels_cls)
-        model.save_pretrained(self.args.output_dir)
-        torch.save(self.args, os.path.join(self.args.output_dir, 'training_args.bin'))
-        self.logger.info('Saving models checkpoint to %s', self.args.output_dir)
-        self.tokenizer.save_vocabulary(save_directory=self.args.output_dir)
+        output_dir = os.path.join(self.args.output_dir, 'cls')
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        model.save_pretrained(output_dir)
+        torch.save(self.args, os.path.join(output_dir, 'training_args.bin'))
+        self.logger.info('Saving models checkpoint to %s', output_dir)
+        self.tokenizer.save_vocabulary(save_directory=output_dir)
 
 
 class CDNForNUMTrainer(Trainer):
@@ -1448,9 +1885,11 @@ class CDNForNUMTrainer(Trainer):
             model,
             data_processor,
             tokenizer,
-            train_dataset,
-            eval_dataset,
-            logger
+            logger,
+            model_class,
+            train_dataset=None,
+            eval_dataset=None,
+            ngram_dict=None
     ):
         super(CDNForNUMTrainer, self).__init__(
             args=args,
@@ -1459,7 +1898,9 @@ class CDNForNUMTrainer(Trainer):
             tokenizer=tokenizer,
             train_dataset=train_dataset,
             eval_dataset=eval_dataset,
-            logger=logger
+            logger=logger,
+            model_class=model_class,
+            ngram_dict=ngram_dict
         )
 
     def training_step(self, model, item):
@@ -1515,9 +1956,49 @@ class CDNForNUMTrainer(Trainer):
                 eval_labels = np.append(eval_labels, labels.detach().cpu().numpy(), axis=0)
 
         preds = np.argmax(preds, axis=1)
-        p, r, f1, _ = ctc_metric(preds, eval_labels)
-        logger.info("%s-%s precision: %s - recall: %s - f1 score: %s", args.task_name, args.model_name, p, r, f1)
+        p, r, f1, _ = cdn_num_metric(preds, eval_labels)
+        logger.info("%s-%s f1: %s", args.task_name, args.model_name, f1)
         return f1
+
+    def predict(self, model, test_dataset, cls_preds, recall_labels, recall_scores):
+        args = self.args
+        logger = self.logger
+        test_dataloader = self.get_test_dataloader(test_dataset)
+        num_examples = len(test_dataloader.dataset)
+        model.to(args.device)
+
+        preds = None
+
+        logger.info("***** Running prediction *****")
+        logger.info("Num samples %d", num_examples)
+        pbar = ProgressBar(n_total=len(test_dataloader), desc='Evaluation')
+        for step, item in enumerate(test_dataloader):
+            model.eval()
+
+            text1 = item
+
+            inputs = self.tokenizer(text1, return_tensors='pt', padding='max_length',
+                                    truncation='longest_first', max_length=self.args.max_length)
+            inputs['input_ids'] = inputs['input_ids'].to(self.args.device)
+            inputs['attention_mask'] = inputs['attention_mask'].to(self.args.device)
+            inputs['token_type_ids'] = inputs['token_type_ids'].to(self.args.device)
+
+            with torch.no_grad():
+                outputs = model(**inputs)
+                logits = outputs[0]
+
+            if preds is None:
+                preds = logits.detach().cpu().numpy()
+            else:
+                preds = np.append(preds, logits.detach().cpu().numpy(), axis=0)
+
+            pbar(step, info="")
+        preds = np.argmax(preds, axis=1)
+
+        recall_labels = np.array(recall_labels['recall_label'])
+        recall_scores = recall_scores
+        cdn_commit_prediction(test_dataset.text1, cls_preds, preds, recall_labels, recall_scores,
+                              args.result_output_dir, self.data_processor.id2label)
 
     def _save_checkpoint(self, model, step):
         output_dir = os.path.join(self.args.output_dir, 'checkpoint-{}'.format(step))
@@ -1527,3 +2008,13 @@ class CDNForNUMTrainer(Trainer):
         torch.save(self.args, os.path.join(output_dir, 'training_args.bin'))
         self.logger.info('Saving models checkpoint to %s', output_dir)
         self.tokenizer.save_vocabulary(save_directory=output_dir)
+
+    def _save_best_checkpoint(self, best_step):
+        model = self.model_class.from_pretrained(os.path.join(self.args.output_dir, f'checkpoint-{best_step}'),
+                                                 num_labels=self.data_processor.num_labels_num)
+        if not os.path.exists(os.path.join(self.args.output_dir, 'num')):
+            os.mkdir(os.path.join(self.args.output_dir, 'num'))
+        model.save_pretrained(os.path.join(self.args.output_dir, 'num'))
+        torch.save(self.args, os.path.join(self.args.output_dir, 'num', 'training_args.bin'))
+        self.logger.info('Saving models checkpoint to %s', os.path.join(self.args.output_dir, 'num'))
+        self.tokenizer.save_vocabulary(save_directory=os.path.join(self.args.output_dir, 'num'))

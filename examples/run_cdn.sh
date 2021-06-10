@@ -11,7 +11,7 @@ RESULT_OUTPUT_DIR="data/result_output"
 MAX_LENGTH=64
 
 RECALL_K=200
-NUM_NEGATIVE_SAMPLES=3
+NUM_NEGATIVE_SAMPLES=5
 DO_AUGMENT=1
 
 echo "Start running"
@@ -33,7 +33,7 @@ if [ $# == 0 ]; then
         --train_batch_size=32 \
         --eval_batch_size=256 \
         --learning_rate=3e-5 \
-        --epochs=3 \
+        --epochs=5 \
         --warmup_proportion=0.1 \
         --earlystop_patience=3 \
         --logging_steps=250 \
