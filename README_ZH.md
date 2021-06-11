@@ -30,7 +30,7 @@
 
 #### 运行环境（Requirements）
 
-python3 / pytorch 1.7 / transformers 4.5.1 / jieba / gensim 
+python3 / pytorch 1.7 / transformers 4.5.1 / jieba / gensim / sklearn
 
 #### 数据准备（Data preparation）
 

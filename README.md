@@ -31,7 +31,7 @@ We present the baseline models on the biomedical tasks and release corresponding
 
 ### Requirements
 
-python3 / pytorch 1.7 / transformers 4.5.1 / jieba / gensim 
+python3 / pytorch 1.7 / transformers 4.5.1 / jieba / gensim / sklearn
 
 ### Data preparation
 
@@ -491,6 +491,8 @@ trainer.predict(test_dataset)
 
 ## Training setup
 
+We list the hyper-parameters of every tasks during the baseline experiments.
+
 **Common hyper-parameters**
 
 |       Param       | Value |
@@ -501,6 +503,8 @@ trainer.predict(test_dataset)
 |   max_grad_norm   |  1.0  |
 
 **CMeEE**
+
+Hyper-parameters for the training of pre-trained models with a token classification head on top for named entity recognition of the CMeEE task.
 
 | Model                 | epoch | batch_size | max_length | learning_rate |
 | --------------------- | :---: | :--------: | :--------: | :-----------: |
@@ -515,6 +519,8 @@ trainer.predict(test_dataset)
 
 **CMeIE-ER**
 
+Hyper-parameters for the training of pre-trained models with a token-level classifier for subject and object recognition of the CMeIE task.
+
 | Model                 | epoch | batch_size | max_length | learning_rate |
 | --------------------- | :---: | :--------: | :--------: | :-----------: |
 | bert-base             |   7   |     32     |    128     |     5e-5      |
@@ -527,6 +533,8 @@ trainer.predict(test_dataset)
 | PCL-MedBERT           |   7   |     32     |    128     |     4e-5      |
 
 **CMeIE-RE**
+
+Hyper-parameters for the training of pre-trained models with a classifier for the entity pairs relation prediction of the CMeIE task.
 
 | Model                 | epoch | batch_size | max_length | learning_rate |
 | --------------------- | :---: | :--------: | :--------: | :-----------: |
@@ -541,6 +549,8 @@ trainer.predict(test_dataset)
 
 **CHIP-CTC**
 
+Hyper-parameters for the training of pre-trained models with a sequence classification head on top for screening criteria classification of the CHIP-CTC task.
+
 | Model                 | epoch | batch_size | max_length | learning_rate |
 | --------------------- | :---: | :--------: | :--------: | :-----------: |
 | bert-base             |   5   |     32     |    128     |     5e-5      |
@@ -554,10 +564,15 @@ trainer.predict(test_dataset)
 
 **CHIP-CDN-cls**
 
+Hyper-parameters for the CHIP-CDN task. We model the CHIP-CDN task with two stages: recall stage and ranking stage. `num_negative_sample` sets the number of negative samples sampled for the training ranking model during the ranking stage. `recall_k` sets the number of candidates recalled in the recall stage.
+
 | Param               | Value |
 | ------------------- | ----- |
 | recall_k            | 200   |
 | num_negative_sample | 10    |
+
+Hyper-parameters for the training of pre-trained models with a sequence classifier for the ranking model of the CHIP-CDN task. We encode the pairs of the original term and standard phrase from candidates recalled during the recall stage and then pass the pooled output to the classifier, which predicts the relevance between the original term and standard phrase.
+
 
 | Model                 | epoch | batch_size | max_length | learning_rate |
 | --------------------- | :---: | :--------: | :--------: | :-----------: |
@@ -572,6 +587,8 @@ trainer.predict(test_dataset)
 
 **CHIP-CDN-num**
 
+Hyper-parameters for the training of pre-trained models with a sequence classifier for the prediction of the number of standard phrases corresponding to the original term in the CHIP-CDN task. We take the prediction results of the model as the number we choose from the most relevant standard phrases, combining with the prediction of the ranking model.
+
 | Model                 | epoch | batch_size | max_length | learning_rate |
 | --------------------- | :---: | :--------: | :--------: | :-----------: |
 | bert-base             |  20   |     32     |    128     |     4e-5      |
@@ -584,6 +601,8 @@ trainer.predict(test_dataset)
 | PCL-MedBERT           |  20   |     32     |    128     |     4e-5      |
 
 **CHIP-STS**
+
+Hyper-parameters for the training of pre-trained models with a sequence classifier for sentence similarity predication of the CHIP-STS task.
 
 | Model                 | epoch | batch_size | max_length | learning_rate |
 | --------------------- | :---: | :--------: | :--------: | :-----------: |
@@ -598,6 +617,8 @@ trainer.predict(test_dataset)
 
 **KUAKE-QIC**
 
+Hyper-parameters for the training of pre-trained models with a sequence classifier for query intention prediction of the KUAKE-QIC task.
+
 | Model                 | epoch | batch_size | max_length | learning_rate |
 | --------------------- | :---: | :--------: | :--------: | :-----------: |
 | bert-base             |   3   |     16     |     50     |     2e-5      |
@@ -611,6 +632,8 @@ trainer.predict(test_dataset)
 
 **KUAKE-QTR**
 
+Hyper-parameters for the training of pre-trained models with a sequence classifier for query-title pairs relevance prediction of the KUAKE-QTR task.
+
 | Model                 | epoch | batch_size | max_length | learning_rate |
 | --------------------- | :---: | :--------: | :--------: | :-----------: |
 | bert-base             |   3   |     16     |     40     |     4e-5      |
@@ -623,6 +646,8 @@ trainer.predict(test_dataset)
 | PCL-MedBERT           |   3   |     16     |     40     |     3e-5      |
 
 **KUAKE-QQR**
+
+Hyper-parameters for the training of pre-trained models with a sequence classifier for query-query pairs relevance prediction of the KUAKE-QQR task.
 
 | Model                 | epoch | batch_size | max_length | learning_rate |
 | --------------------- | :---: | :--------: | :--------: | :-----------: |
