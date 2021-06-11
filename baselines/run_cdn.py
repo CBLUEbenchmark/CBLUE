@@ -112,7 +112,7 @@ def main():
         data_processor = CDNDataProcessor(root=args.data_dir, recall_k=args.recall_k,
                                           negative_sample=args.num_neg)
         train_samples, recall_orig_train_samples, recall_orig_train_samples_scores = data_processor.get_train_sample(dtype='cls', do_augment=args.do_aug)
-        eval_samples, recall_orig_eval_samples, recall_orig_train_samples_scores = data_processor.get_dev_sample(dtype='cls')
+        eval_samples, recall_orig_eval_samples, recall_orig_train_samples_scores = data_processor.get_dev_sample(dtype='cls', do_augment=args.do_aug)
         if data_processor.recall:
             logger.info('first recall score: %s', data_processor.recall)
 
@@ -174,9 +174,6 @@ def main():
         model = CDNForCLSModel(model_class, encoder_path=os.path.join(args.output_dir, 'cls'),
                                num_labels=data_processor.num_labels_cls)
         model.load_state_dict(torch.load(os.path.join(args.output_dir, 'pytorch_model_cls.pt')))
-
-        # model = cls_model_class.from_pretrained(os.path.join(args.output_dir, 'cls'),
-        #                                         num_labels=data_processor.num_labels_cls)
         trainer = CDNForCLSTrainer(args=args, model=model, data_processor=data_processor,
                                    tokenizer=tokenizer, logger=logger,
                                    recall_orig_eval_samples=recall_orig_test_samples,

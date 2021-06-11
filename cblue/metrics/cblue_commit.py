@@ -101,7 +101,7 @@ def cdn_commit_prediction(text, preds, num_preds, recall_labels, recall_scores, 
         recall_label = recall_label[active_indice]
 
         if len(final_pred):
-            final_score = (recall_score + final_pred) / 2
+            final_score = (recall_score / 2 + final_pred) / 2
             final_score = np.argsort(final_score)[::-1]
             recall_label = recall_label[final_score]
 
