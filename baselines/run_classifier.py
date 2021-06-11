@@ -168,8 +168,7 @@ def main():
         test_samples = data_processor.get_test_sample()
 
         if args.task_name != 'ee':
-            test_dataset = dataset_class(test_samples, data_processor, mode='test', ngram_dict=ngram_dict,
-                                         max_length=args.max_length, model_type=args.model_type)
+            test_dataset = dataset_class(test_samples, data_processor, mode='test')
         else:
             test_dataset = dataset_class(test_samples, data_processor, tokenizer, mode='test', ngram_dict=ngram_dict,
                                          max_length=args.max_length, model_type=args.model_type)

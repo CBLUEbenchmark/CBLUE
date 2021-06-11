@@ -119,17 +119,31 @@ def main():
         train_dataset = CDNDataset(train_samples, data_processor, dtype='cls', mode='train')
         eval_dataset = CDNDataset(eval_samples, data_processor, dtype='cls', mode='eval')
 
-        # model = CDNForCLSModel(model_class, encoder_path=os.path.join(args.model_dir, args.model_name),
-        #                        num_labels=data_processor.num_labels_cls)
+        model = CDNForCLSModel(model_class, encoder_path=os.path.join(args.model_dir, args.model_name),
+                               num_labels=data_processor.num_labels_cls)
         cls_model_class = CLS_MODEL_CLASS[args.model_type]
-        model = cls_model_class.from_pretrained(os.path.join(args.model_dir, args.model_name),
-                                                num_labels=data_processor.num_labels_cls)
+        # model = cls_model_class.from_pretrained(os.path.join(args.model_dir, args.model_name),
+        #                                         num_labels=data_processor.num_labels_cls)
         trainer = CDNForCLSTrainer(args=args, model=model, data_processor=data_processor,
                                    tokenizer=tokenizer, train_dataset=train_dataset, eval_dataset=eval_dataset,
                                    logger=logger, recall_orig_eval_samples=recall_orig_eval_samples,
                                    model_class=cls_model_class, recall_orig_eval_samples_scores=recall_orig_train_samples_scores)
 
         global_step, best_step = trainer.train()
+
+        model = CDNForCLSModel(model_class, encoder_path=os.path.join(args.output_dir, f'checkpoint-{best_step}'),
+                               num_labels=data_processor.num_labels_cls)
+        model.load_state_dict(torch.load(os.path.join(args.output_dir, f'checkpoint-{best_step}', 'pytorch_model.pt')))
+        tokenizer = tokenizer_class.from_pretrained(os.path.join(args.output_dir, f'checkpoint-{best_step}'))
+        torch.save(model.state_dict(), os.path.join(args.output_dir, 'pytorch_model_cls.pt'))
+        if not os.path.exists(os.path.join(args.output_dir, 'cls')):
+            os.mkdir(os.path.join(args.output_dir, 'cls'))
+        # if args.model_type == 'zen':
+        #     save_zen_model(os.path.join(args.output_dir, 'er'), model.encoder, tokenizer, ngram_dict, args)
+        # else:
+        model.encoder.save_pretrained(os.path.join(args.output_dir, 'cls'))
+        tokenizer.save_vocabulary(save_directory=os.path.join(args.output_dir, 'cls'))
+        logger.info('Saving models checkpoint to %s', os.path.join(args.output_dir, 'cls'))
 
         logger.info('Training NUM model...')
         args.logging_steps = 30
@@ -156,13 +170,18 @@ def main():
 
         test_dataset = CDNDataset(test_samples, data_processor, dtype='cls', mode='test')
         cls_model_class = CLS_MODEL_CLASS[args.model_type]
+
+        model = CDNForCLSModel(model_class, encoder_path=os.path.join(args.output_dir, 'cls'),
+                               num_labels=data_processor.num_labels_cls)
+        model.load_state_dict(torch.load(os.path.join(args.output_dir, 'pytorch_model_cls.pt')))
+
         # model = cls_model_class.from_pretrained(os.path.join(args.output_dir, 'cls'),
         #                                         num_labels=data_processor.num_labels_cls)
-        # trainer = CDNForCLSTrainer(args=args, model=model, data_processor=data_processor,
-        #                            tokenizer=tokenizer, logger=logger,
-        #                            recall_orig_eval_samples=recall_orig_test_samples,
-        #                            model_class=cls_model_class)
-        # cls_preds = trainer.predict(test_dataset, model)
+        trainer = CDNForCLSTrainer(args=args, model=model, data_processor=data_processor,
+                                   tokenizer=tokenizer, logger=logger,
+                                   recall_orig_eval_samples=recall_orig_test_samples,
+                                   model_class=cls_model_class)
+        cls_preds = trainer.predict(test_dataset, model)
 
         # cls_preds = np.load(os.path.join(args.result_output_dir, 'cdn_test_preds.npy'))
 

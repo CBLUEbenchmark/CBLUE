@@ -1785,7 +1785,7 @@ class CDNForCLSTrainer(Trainer):
 
             with torch.no_grad():
                 outputs = model(**inputs)
-                logits = outputs[0]
+                logits = outputs
 
             if preds is None:
                 preds = logits.detach().cpu().numpy()
@@ -1797,15 +1797,6 @@ class CDNForCLSTrainer(Trainer):
             pbar(step, info="")
 
         preds = np.argmax(preds, axis=1)
-        # preds = preds.view(len(preds) // args.recall_k, args.recall_k, 2).softmax(dim=-1)
-        # preds = preds[:, :, 1]
-
-        # recall_sample_ids = torch.tensor(self.recall_orig_eval_samples['label'], requires_grad=False)
-        # recall_sample_score = torch.tensor(self.recall_orig_eval_samples_scores, requires_grad=False)
-
-        # preds_topk = preds.topk(5, dim=-1)
-        # preds_indices = preds_topk.indices
-        # preds_values = (preds_topk.values >= 0.5).long()
 
         p, r, f1, _ = cdn_cls_metric(preds, labels)
         logger.info("%s-%s precision: %s - recall: %s - f1 score: %s", args.task_name, args.model_name, p, r, f1)
@@ -1839,7 +1830,7 @@ class CDNForCLSTrainer(Trainer):
 
             with torch.no_grad():
                 outputs = model(**inputs)
-                logits = outputs[0]
+                logits = outputs
 
             if preds is None:
                 preds = logits.detach().softmax(-1)[:, 1].cpu().numpy()
@@ -1849,33 +1840,23 @@ class CDNForCLSTrainer(Trainer):
             pbar(step, info="")
 
         preds = preds.reshape(len(preds) // args.recall_k, args.recall_k)
-        # preds = np.argmax(preds, axis=1)
-        # preds = preds.reshape(len(preds) // args.recall_k, args.recall_k)
         np.save(os.path.join(args.result_output_dir, f'cdn_test_preds.npy'), preds)
-        # cdn_commit_prediction(text=self.recall_orig_eval_samples['text'], preds=preds,
-        #                       recall_labels=self.recall_orig_eval_samples['recall_label'],
-        #                       output_dir=args.result_output_dir, id2label=self.data_processor.id2label)
         return preds
 
     def _save_checkpoint(self, model, step):
         output_dir = os.path.join(self.args.output_dir, 'checkpoint-{}'.format(step))
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
-        model.save_pretrained(output_dir)
-        torch.save(self.args, os.path.join(output_dir, 'training_args.bin'))
+        torch.save(model.state_dict(), os.path.join(output_dir, 'pytorch_model.pt'))
         self.logger.info('Saving models checkpoint to %s', output_dir)
-        self.tokenizer.save_vocabulary(save_directory=output_dir)
+        if self.args.model_type == 'zen':
+            save_zen_model(output_dir, model.encoder, self.tokenizer, self.ngram_dict, self.args)
+        else:
+            model.encoder.save_pretrained(output_dir)
+            self.tokenizer.save_vocabulary(save_directory=output_dir)
 
     def _save_best_checkpoint(self, best_step):
-        model = self.model_class.from_pretrained(os.path.join(self.args.output_dir, f'checkpoint-{best_step}'),
-                                                 num_labels=self.data_processor.num_labels_cls)
-        output_dir = os.path.join(self.args.output_dir, 'cls')
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
-        model.save_pretrained(output_dir)
-        torch.save(self.args, os.path.join(output_dir, 'training_args.bin'))
-        self.logger.info('Saving models checkpoint to %s', output_dir)
-        self.tokenizer.save_vocabulary(save_directory=output_dir)
+        pass
 
 
 class CDNForNUMTrainer(Trainer):

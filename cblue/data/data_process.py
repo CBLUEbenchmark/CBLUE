@@ -18,11 +18,11 @@ class EEDataProcessor(object):
         self.label_map_cache_path = os.path.join(self.task_data_dir, 'CMeEE_label_map.dict')
         self.label2id = None
         self.id2label = None
+        self.no_entity_label = no_entity_label
         self._get_labels()
         self.num_labels = len(self.label2id.keys())
 
         self.is_lower = is_lower
-        self.no_entity_label = no_entity_label
 
     def get_train_sample(self):
         return self._pre_process(self.train_path, is_predict=False)
@@ -72,7 +72,7 @@ class EEDataProcessor(object):
             outputs['text'].append(text_a)
             outputs['orig_text'].append(data['text'])
             if not is_predict:
-                labels = ["O"] * len(text_a)
+                labels = [self.no_entity_label] * len(text_a)
                 for entity in data['entities']:
                     start_idx, end_idx, type = entity['start_idx'], entity['end_idx'], entity['type']
                     labels = label_data(labels, start_idx, end_idx, type)
@@ -488,19 +488,19 @@ class CDNDataProcessor(object):
                 recall_orig_samples['recall_label'].append(recall_label)
 
                 # recall_label = np.random.permutation(recall_label)
-                # cur_idx = 0
-                # for label_ in recall_label:
-                #     if cnt_label >= self.negative_sample:
-                #         break
-                #     if label_ not in orig_label_ids:
-                #         outputs['text1'].append(text)
-                #         outputs['text2'].append(self.id2label[label_])
-                #         outputs['label'].append(0)
-                #         orig_label_ids.append(label_)
-                #         cnt_label += 1
-                #     cur_idx += 1
+                cur_idx = 0
+                for label_ in recall_label:
+                    if cnt_label >= self.negative_sample:
+                        break
+                    if label_ not in orig_label_ids:
+                        outputs['text1'].append(text)
+                        outputs['text2'].append(self.id2label[label_])
+                        outputs['label'].append(0)
+                        orig_label_ids.append(label_)
+                        cnt_label += 1
+                    cur_idx += 1
                 cnt_label = 0
-                recall_label = np.random.permutation(recall_label)
+                recall_label = np.random.permutation(recall_label[cur_idx:])
                 for label_ in recall_label:
                     if cnt_label >= self.negative_sample:
                         break
@@ -533,7 +533,21 @@ class CDNDataProcessor(object):
                 #     outputs['text2'].append(self.id2label[label_])
                 #     outputs['label'].append(0)
                 cnt_label = 0
-                recall_label = np.random.permutation(recall_label)
+                # recall_label = np.random.permutation(recall_label)
+                cur_idx = 0
+                for label_ in recall_label:
+                    if cnt_label >= self.negative_sample:
+                        break
+                    if label_ not in orig_label_ids:
+                        outputs['text1'].append(text)
+                        outputs['text2'].append(self.id2label[label_])
+                        outputs['label'].append(0)
+                        orig_label_ids.append(label_)
+                        cnt_label += 1
+                    cur_idx += 1
+
+                cnt_label = 0
+                recall_label = np.random.permutation(recall_label[cur_idx:])
                 for label_ in recall_label:
                     if cnt_label >= self.negative_sample:
                         break

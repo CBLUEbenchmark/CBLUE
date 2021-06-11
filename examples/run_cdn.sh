@@ -12,7 +12,7 @@ MAX_LENGTH=64
 
 RECALL_K=200
 NUM_NEGATIVE_SAMPLES=5
-DO_AUGMENT=1
+DO_AUGMENT=6
 
 echo "Start running"
 
@@ -32,8 +32,8 @@ if [ $# == 0 ]; then
         --max_length=${MAX_LENGTH} \
         --train_batch_size=32 \
         --eval_batch_size=256 \
-        --learning_rate=3e-5 \
-        --epochs=5 \
+        --learning_rate=5e-5 \
+        --epochs=3 \
         --warmup_proportion=0.1 \
         --earlystop_patience=3 \
         --logging_steps=250 \

@@ -21,6 +21,7 @@ NGRAM_DICT_NAME = 'ngram.txt'
 
 logger = logging.getLogger(__name__)
 
+
 class ZenNgramDict(object):
     """
     Dict class to store the ngram
