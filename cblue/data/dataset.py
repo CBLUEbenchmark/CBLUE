@@ -123,7 +123,7 @@ class REDataset(Dataset):
                        torch.tensor([s_start_idx, o_start_idx]).long(), \
                        torch.tensor(label).long()
         else:
-            if self.mode != 'zen':
+            if self.model_type == 'zen':
                 return torch.tensor(inputs['input_ids']), torch.tensor(inputs['token_type_ids']), \
                        torch.tensor(inputs['attention_mask']), torch.tensor([s_start_idx, o_start_idx]), \
                        torch.tensor(inputs['input_ngram_ids']), \
