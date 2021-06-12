@@ -515,6 +515,9 @@ Hyper-parameters for the training of pre-trained models with a token classificat
 | roberta-large         |   5   |     12     |     65     |     2e-5      |
 | albert-tiny           |  10   |     32     |    128     |     5e-5      |
 | albert-xxlarge        |   5   |     12     |     65     |     1e-5      |
+| zen                   |   5   |     20     |    128     |     4e-5      |
+| macbert-base          |   5   |     32     |    128     |     4e-5      |
+| macbert-large         |   5   |     12     |     80     |     2e-5      |
 | PCL-MedBERT           |   5   |     32     |    128     |     4e-5      |
 
 **CMeIE-ER**
@@ -530,6 +533,9 @@ Hyper-parameters for the training of pre-trained models with a token-level class
 | roberta-large         |   7   |     16     |     80     |     2e-5      |
 | albert-tiny           |  10   |     32     |    128     |     4e-5      |
 | albert-xxlarge        |   7   |     16     |     80     |     1e-5      |
+| zen                   |   7   |     20     |    128     |     4e-5      |
+| macbert-base          |   7   |     32     |    128     |     4e-5      |
+| macbert-large         |   7   |     20     |     80     |     2e-5      |
 | PCL-MedBERT           |   7   |     32     |    128     |     4e-5      |
 
 **CMeIE-RE**
@@ -545,6 +551,9 @@ Hyper-parameters for the training of pre-trained models with a classifier for th
 | roberta-large         |   8   |     16     |     80     |     2e-5      |
 | albert-tiny           |  10   |     32     |    128     |     4e-5      |
 | albert-xxlarge        |   8   |     16     |     80     |     1e-5      |
+| zen                   |   8   |     20     |    128     |     4e-5      |
+| macbert-base          |   8   |     32     |    128     |     4e-5      |
+| macbert-large         |   8   |     20     |     80     |     2e-5      |
 | PCL-MedBERT           |   8   |     32     |    128     |     4e-5      |
 
 **CHIP-CTC**
@@ -560,6 +569,9 @@ Hyper-parameters for the training of pre-trained models with a sequence classifi
 | roberta-large         |   5   |     20     |     50     |     4e-5      |
 | albert-tiny           |  10   |     32     |    128     |     4e-5      |
 | albert-xxlarge        |   5   |     20     |     50     |     1e-5      |
+| zen                   |   5   |     20     |    128     |     4e-5      |
+| macbert-base          |   5   |     32     |    128     |     4e-5      |
+| macbert-large         |   5   |     20     |     50     |     2e-5      |
 | PCL-MedBERT           |   5   |     32     |    128     |     4e-5      |
 
 **CHIP-CDN-cls**
@@ -583,6 +595,9 @@ Hyper-parameters for the training of pre-trained models with a sequence classifi
 | roberta-large         |   3   |     32     |     40     |     4e-5      |
 | albert-tiny           |   3   |     32     |    128     |     4e-5      |
 | albert-xxlarge        |   3   |     32     |     40     |     1e-5      |
+| zen                   |   3   |     20     |    128     |     4e-5      |
+| macbert-base          |   3   |     32     |    128     |     4e-5      |
+| macbert-large         |   3   |     32     |     40     |     2e-5      |
 | PCL-MedBERT           |   3   |     32     |    128     |     4e-5      |
 
 **CHIP-CDN-num**
@@ -598,6 +613,9 @@ Hyper-parameters for the training of pre-trained models with a sequence classifi
 | roberta-large         |  20   |     12     |     40     |     4e-5      |
 | albert-tiny           |  20   |     32     |    128     |     4e-5      |
 | albert-xxlarge        |  20   |     12     |     40     |     1e-5      |
+| zen                   |  20   |     20     |    128     |     4e-5      |
+| macbert-base          |  20   |     32     |    128     |     4e-5      |
+| macbert-large         |  20   |     12     |     40     |     2e-5      |
 | PCL-MedBERT           |  20   |     32     |    128     |     4e-5      |
 
 **CHIP-STS**
@@ -613,6 +631,9 @@ Hyper-parameters for the training of pre-trained models with a sequence classifi
 | roberta-large         |   3   |     16     |     40     |     2e-5      |
 | albert-tiny           |   3   |     16     |     40     |     5e-5      |
 | albert-xxlarge        |   3   |     16     |     40     |     1e-5      |
+| zen                   |   3   |     16     |     40     |     2e-5      |
+| macbert-base          |   3   |     16     |     40     |     3e-5      |
+| macbert-large         |   3   |     16     |     40     |     3e-5      |
 | PCL-MedBERT           |   3   |     16     |     40     |     2e-5      |
 
 **KUAKE-QIC**
@@ -628,6 +649,9 @@ Hyper-parameters for the training of pre-trained models with a sequence classifi
 | roberta-large         |   3   |     16     |     50     |     3e-5      |
 | albert-tiny           |   3   |     16     |     50     |     5e-5      |
 | albert-xxlarge        |   3   |     16     |     50     |     1e-5      |
+| zen                   |   3   |     16     |     50     |     2e-5      |
+| macbert-base          |   3   |     16     |     50     |     3e-5      |
+| macbert-large         |   3   |     16     |     50     |     2e-5      |
 | PCL-MedBERT           |   3   |     16     |     50     |     2e-5      |
 
 **KUAKE-QTR**
@@ -643,6 +667,9 @@ Hyper-parameters for the training of pre-trained models with a sequence classifi
 | roberta-large         |   3   |     16     |     40     |     2e-5      |
 | albert-tiny           |   3   |     16     |     40     |     5e-5      |
 | albert-xxlarge        |   3   |     16     |     40     |     1e-5      |
+| zen                   |   3   |     16     |     40     |     3e-5      |
+| macbert-base          |   3   |     16     |     40     |     2e-5      |
+| macbert-large         |   3   |     16     |     40     |     2e-5      |
 | PCL-MedBERT           |   3   |     16     |     40     |     3e-5      |
 
 **KUAKE-QQR**
@@ -658,5 +685,8 @@ Hyper-parameters for the training of pre-trained models with a sequence classifi
 | roberta-large         |   3   |     16     |     30     |     2e-5      |
 | albert-tiny           |   3   |     16     |     30     |     5e-5      |
 | albert-xxlarge        |   3   |     16     |     30     |     3e-5      |
+| zen                   |   3   |     16     |     30     |     2e-5      |
+| macbert-base          |   3   |     16     |     30     |     2e-5      |
+| macbert-large         |   3   |     16     |     30     |     2e-5      |
 | PCL-MedBERT           |   3   |     16     |     30     |     2e-5      |
 
