@@ -163,7 +163,7 @@ def main():
         global_step, best_step = trainer.train()
 
     if args.do_predict:
-        tokenizer = tokenizer_class.from_pretrained(args.output_dir)
+        tokenizer = tokenizer_class.from_pretrained(os.path.join(args.output_dir, 'cls'))
         data_processor = CDNDataProcessor(root=args.data_dir, recall_k=args.recall_k,
                                           negative_sample=args.num_neg)
         test_samples, recall_orig_test_samples, recall_orig_test_samples_scores = data_processor.get_test_sample(dtype='cls')
@@ -183,13 +183,14 @@ def main():
         # cls_preds = np.load(os.path.join(args.result_output_dir, 'cdn_test_preds.npy'))
 
         test_samples = data_processor.get_test_sample(dtype='num')
+        orig_texts = data_processor.get_test_orig_text()
         test_dataset = CDNDataset(test_samples, data_processor, dtype='num', mode='test')
         model = cls_model_class.from_pretrained(os.path.join(args.output_dir, 'num'),
                                                 num_labels=data_processor.num_labels_num)
         trainer = CDNForNUMTrainer(args=args, model=model, data_processor=data_processor,
                                    tokenizer=tokenizer, logger=logger,
                                    model_class=cls_model_class)
-        trainer.predict(model, test_dataset, cls_preds, recall_orig_test_samples, recall_orig_test_samples_scores)
+        trainer.predict(model, test_dataset, orig_texts, cls_preds, recall_orig_test_samples, recall_orig_test_samples_scores)
 
 
 if __name__ == '__main__':

@@ -1941,7 +1941,7 @@ class CDNForNUMTrainer(Trainer):
         logger.info("%s-%s f1: %s", args.task_name, args.model_name, f1)
         return f1
 
-    def predict(self, model, test_dataset, cls_preds, recall_labels, recall_scores):
+    def predict(self, model, test_dataset, orig_texts, cls_preds, recall_labels, recall_scores):
         args = self.args
         logger = self.logger
         test_dataloader = self.get_test_dataloader(test_dataset)
@@ -1978,7 +1978,7 @@ class CDNForNUMTrainer(Trainer):
 
         recall_labels = np.array(recall_labels['recall_label'])
         recall_scores = recall_scores
-        cdn_commit_prediction(test_dataset.text1, cls_preds, preds, recall_labels, recall_scores,
+        cdn_commit_prediction(orig_texts, cls_preds, preds, recall_labels, recall_scores,
                               args.result_output_dir, self.data_processor.id2label)
 
     def _save_checkpoint(self, model, step):

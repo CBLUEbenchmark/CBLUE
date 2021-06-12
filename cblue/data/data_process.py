@@ -411,6 +411,11 @@ class CDNDataProcessor(object):
             outputs = self._get_num_samples(orig_sample=samples, is_predict=True)
         return outputs
 
+    def get_test_orig_text(self):
+        samples = load_json(self.test_path)
+        texts = [sample['text'] for sample in samples]
+        return texts
+
     def _pre_process(self, path, is_predict=False):
         samples = load_json(path)
         outputs = {'text': [], 'label': []}
