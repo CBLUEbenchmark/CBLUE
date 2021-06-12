@@ -116,7 +116,13 @@ def convert_examples_to_features_for_tokens(text, max_seq_length=128, tokenizer=
 
     text_list = text
 
-    tokens = tokenizer.tokenize(text_list)
+    tokens = []
+    if isinstance(text_list, list):
+        for i, word in enumerate(text_list):
+            token = tokenizer.tokenize(word)
+            tokens.extend(token)
+    else:
+        tokens = tokenizer.tokenize(text_list)
 
     if len(tokens) >= max_seq_length - 1:
         tokens = tokens[0:(max_seq_length - 2)]

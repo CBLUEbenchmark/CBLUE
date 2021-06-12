@@ -77,19 +77,32 @@ class CDNForCLSModel(nn.Module):
     def __init__(self, encoder_class, encoder_path, num_labels):
         super(CDNForCLSModel, self).__init__()
 
-        self.encoder = encoder_class.from_pretrained(encoder_path, output_hidden_states=True)
+        self.encoder = encoder_class.from_pretrained(encoder_path)
         self.num_labels = num_labels
         self.dropout = nn.Dropout(self.encoder.config.hidden_dropout_prob)
         self.classifier = nn.Linear(self.encoder.config.hidden_size, num_labels)
 
-    def forward(self,
-                input_ids=None,
-                attention_mask=None,
-                token_type_ids=None,
-                labels=None,
-                output_hidden_states=None):
-        outputs = self.encoder(input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask,
-                               output_hidden_states=output_hidden_states)
+    def forward(
+        self,
+        input_ids=None,
+        attention_mask=None,
+        token_type_ids=None,
+        labels=None,
+        output_hidden_states=True,
+        input_ngram_ids=None,
+        ngram_position_matrix=None,
+        ngram_token_type_ids=None,
+        ngram_attention_mask=None
+    ):
+        if isinstance(self.encoder, ZenModel):
+            outputs = self.encoder(input_ids=input_ids, input_ngram_ids=input_ngram_ids, ngram_position_matrix=ngram_position_matrix,
+                                   token_type_ids=token_type_ids, attention_mask=attention_mask,
+                                   ngram_attention_mask=ngram_attention_mask, ngram_token_type_ids=ngram_token_type_ids,
+                                   output_all_encoded_layers=output_hidden_states)
+        else:
+            outputs = self.encoder(input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask,
+                                   output_hidden_states=output_hidden_states)
+
         # batch, seq, hidden
         last_hidden_states, first_hidden_states = outputs[0], outputs[2][0]
         # batch, hidden

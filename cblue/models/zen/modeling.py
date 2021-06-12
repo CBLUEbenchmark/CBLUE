@@ -921,7 +921,7 @@ class ZenModel(ZenPreTrainedModel):
         self.embeddings = BertEmbeddings(config)
         self.word_embeddings = BertWordEmbeddings(config)
         self.encoder = ZenEncoder(config, output_attentions=output_attentions,
-                                   keep_multihead_output=keep_multihead_output)
+                                  keep_multihead_output=keep_multihead_output)
         self.pooler = BertPooler(config)
         self.apply(self.init_bert_weights)
 
@@ -1010,8 +1010,8 @@ class ZenModel(ZenPreTrainedModel):
         if not output_all_encoded_layers:
             encoded_layers = encoded_layers[-1]
         if self.output_attentions:
-            return all_attentions, encoded_layers, pooled_output
-        return encoded_layers, pooled_output
+            return all_attentions, sequence_output, pooled_output, encoded_layers
+        return sequence_output, pooled_output, encoded_layers
 
     def get_input_embeddings(self):
         return self.embeddings.word_embeddings
@@ -1296,9 +1296,9 @@ class ZenForSequenceClassification(ZenPreTrainedModel):
                             ngram_attention_mask=ngram_attention_mask, ngram_token_type_ids=ngram_token_type_ids,
                             head_mask=head_mask)
         if self.output_attentions:
-            all_attentions, _, pooled_output = outputs
+            all_attentions, _, pooled_output, _ = outputs
         else:
-            _, pooled_output = outputs
+            _, pooled_output, _ = outputs
         pooled_output = self.dropout(pooled_output)
         logits = self.classifier(pooled_output)
 
@@ -1368,9 +1368,9 @@ class ZenForTokenClassification(ZenPreTrainedModel):
                             ngram_attention_mask=ngram_attention_mask, ngram_token_type_ids=ngram_token_type_ids,
                             output_all_encoded_layers=False, head_mask=head_mask)
         if self.output_attentions:
-            all_attentions, sequence_output, _ = outputs
+            all_attentions, sequence_output, _, _ = outputs
         else:
-            sequence_output, _ = outputs
+            sequence_output, _, _ = outputs
 
         sequence_output = self.dropout(sequence_output)
         logits = self.classifier(sequence_output)

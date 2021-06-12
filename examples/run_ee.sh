@@ -2,9 +2,9 @@
 DATA_DIR="CBLUEDatasets"
 
 TASK_NAME="ee"
-MODEL_TYPE="zen"
+MODEL_TYPE="bert"
 MODEL_DIR="data/model_data"
-MODEL_NAME="chinese-zen-base"
+MODEL_NAME="chinese-bert-wwm-ext"
 OUTPUT_DIR="data/output"
 RESULT_OUTPUT_DIR="data/result_output"
 

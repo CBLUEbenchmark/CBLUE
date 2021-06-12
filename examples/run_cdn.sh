@@ -32,7 +32,7 @@ if [ $# == 0 ]; then
         --max_length=${MAX_LENGTH} \
         --train_batch_size=32 \
         --eval_batch_size=256 \
-        --learning_rate=5e-5 \
+        --learning_rate=4e-5 \
         --epochs=3 \
         --warmup_proportion=0.1 \
         --earlystop_patience=3 \

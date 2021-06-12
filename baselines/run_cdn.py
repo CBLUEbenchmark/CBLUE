@@ -11,18 +11,21 @@ from cblue.models import CDNForCLSModel
 from cblue.trainer import CDNForCLSTrainer, CDNForNUMTrainer
 from cblue.utils import init_logger, seed_everything
 from cblue.data import CDNDataset, CDNDataProcessor
+from cblue.models import save_zen_model, ZenModel, ZenForSequenceClassification, ZenNgramDict
 
 
 MODEL_CLASS = {
     'bert': (BertTokenizer, BertModel),
     'roberta': (BertTokenizer, BertModel),
-    'albert': (BertTokenizer, AlbertModel)
+    'albert': (BertTokenizer, AlbertModel),
+    'zen': (BertTokenizer, ZenModel)
 }
 
 CLS_MODEL_CLASS = {
     'bert': BertForSequenceClassification,
     'roberta': BertForSequenceClassification,
-    'albert': AlbertForSequenceClassification
+    'albert': AlbertForSequenceClassification,
+    'zen': ZenForSequenceClassification
 }
 
 
@@ -107,8 +110,13 @@ def main():
     tokenizer_class, model_class = MODEL_CLASS[args.model_type]
 
     if args.do_train:
-        # logger.info('Training CLS model...')
+        logger.info('Training CLS model...')
         tokenizer = tokenizer_class.from_pretrained(os.path.join(args.model_dir, args.model_name))
+
+        ngram_dict = None
+        if args.model_type == 'zen':
+            ngram_dict = ZenNgramDict(os.path.join(args.model_dir, args.model_name), tokenizer=tokenizer)
+
         data_processor = CDNDataProcessor(root=args.data_dir, recall_k=args.recall_k,
                                           negative_sample=args.num_neg)
         train_samples, recall_orig_train_samples, recall_orig_train_samples_scores = data_processor.get_train_sample(dtype='cls', do_augment=args.do_aug)
@@ -122,12 +130,11 @@ def main():
         model = CDNForCLSModel(model_class, encoder_path=os.path.join(args.model_dir, args.model_name),
                                num_labels=data_processor.num_labels_cls)
         cls_model_class = CLS_MODEL_CLASS[args.model_type]
-        # model = cls_model_class.from_pretrained(os.path.join(args.model_dir, args.model_name),
-        #                                         num_labels=data_processor.num_labels_cls)
         trainer = CDNForCLSTrainer(args=args, model=model, data_processor=data_processor,
                                    tokenizer=tokenizer, train_dataset=train_dataset, eval_dataset=eval_dataset,
                                    logger=logger, recall_orig_eval_samples=recall_orig_eval_samples,
-                                   model_class=cls_model_class, recall_orig_eval_samples_scores=recall_orig_train_samples_scores)
+                                   model_class=cls_model_class, recall_orig_eval_samples_scores=recall_orig_train_samples_scores,
+                                   ngram_dict=ngram_dict)
 
         global_step, best_step = trainer.train()
 
@@ -138,10 +145,12 @@ def main():
         torch.save(model.state_dict(), os.path.join(args.output_dir, 'pytorch_model_cls.pt'))
         if not os.path.exists(os.path.join(args.output_dir, 'cls')):
             os.mkdir(os.path.join(args.output_dir, 'cls'))
-        # if args.model_type == 'zen':
-        #     save_zen_model(os.path.join(args.output_dir, 'er'), model.encoder, tokenizer, ngram_dict, args)
-        # else:
-        model.encoder.save_pretrained(os.path.join(args.output_dir, 'cls'))
+
+        if args.model_type == 'zen':
+            save_zen_model(os.path.join(args.output_dir, 'cls'), model.encoder, tokenizer, ngram_dict, args)
+        else:
+            model.encoder.save_pretrained(os.path.join(args.output_dir, 'cls'))
+
         tokenizer.save_vocabulary(save_directory=os.path.join(args.output_dir, 'cls'))
         logger.info('Saving models checkpoint to %s', os.path.join(args.output_dir, 'cls'))
 
@@ -158,12 +167,17 @@ def main():
                                                 num_labels=data_processor.num_labels_num)
         trainer = CDNForNUMTrainer(args=args, model=model, data_processor=data_processor,
                                    tokenizer=tokenizer, train_dataset=train_dataset, eval_dataset=eval_dataset,
-                                   logger=logger, model_class=cls_model_class)
+                                   logger=logger, model_class=cls_model_class, ngram_dict=ngram_dict)
 
         global_step, best_step = trainer.train()
 
     if args.do_predict:
         tokenizer = tokenizer_class.from_pretrained(os.path.join(args.output_dir, 'cls'))
+
+        ngram_dict = None
+        if args.model_type == 'zen':
+            ngram_dict = ZenNgramDict(os.path.join(args.model_dir, args.model_name), tokenizer=tokenizer)
+
         data_processor = CDNDataProcessor(root=args.data_dir, recall_k=args.recall_k,
                                           negative_sample=args.num_neg)
         test_samples, recall_orig_test_samples, recall_orig_test_samples_scores = data_processor.get_test_sample(dtype='cls')
@@ -177,7 +191,7 @@ def main():
         trainer = CDNForCLSTrainer(args=args, model=model, data_processor=data_processor,
                                    tokenizer=tokenizer, logger=logger,
                                    recall_orig_eval_samples=recall_orig_test_samples,
-                                   model_class=cls_model_class)
+                                   model_class=cls_model_class, ngram_dict=ngram_dict)
         cls_preds = trainer.predict(test_dataset, model)
 
         # cls_preds = np.load(os.path.join(args.result_output_dir, 'cdn_test_preds.npy'))
@@ -189,8 +203,9 @@ def main():
                                                 num_labels=data_processor.num_labels_num)
         trainer = CDNForNUMTrainer(args=args, model=model, data_processor=data_processor,
                                    tokenizer=tokenizer, logger=logger,
-                                   model_class=cls_model_class)
-        trainer.predict(model, test_dataset, orig_texts, cls_preds, recall_orig_test_samples, recall_orig_test_samples_scores)
+                                   model_class=cls_model_class, ngram_dict=ngram_dict)
+        trainer.predict(model, test_dataset, orig_texts, cls_preds, recall_orig_test_samples,
+                        recall_orig_test_samples_scores)
 
 
 if __name__ == '__main__':
