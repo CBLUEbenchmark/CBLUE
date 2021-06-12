@@ -4,7 +4,7 @@ DATA_DIR="CBLUEDatasets"
 TASK_NAME="qic"
 MODEL_TYPE="bert"
 MODEL_DIR="data/model_data"
-MODEL_NAME="chinese-bert-base"
+MODEL_NAME="chinese-bert-wwm-ext"
 OUTPUT_DIR="data/output"
 RESULT_OUTPUT_DIR="data/result_output"
 

@@ -1,5 +1,4 @@
 .idea
-test.py
 data/model_data/
 **/__pycache__
 data/output/
