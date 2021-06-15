@@ -4,6 +4,10 @@
 
 # CBLUE
 
+[![License](https://img.shields.io/github/license/CBLUEbenchmark/CBLUE?style=flat-square)](https://github.com/CBLUEbenchmark/CBLUE/blob/master/LICENSE)
+[![GitHub stars](https://img.shields.io/github/stars/CBLUEbenchmark/CBLUE?style=flat-square)](https://github.com/CBLUEbenchmark/CBLUE/stargazers)
+![](https://img.shields.io/badge/PRs-Welcome-red) 
+
 AI (Artificial Intelligence) is playing an  indispensabe role in the biomedical field, helping improve medical technology. For further accelerating AI research in the biomedical field, we present **Chinese Biomedical Language Understanding Evaluation** (CBLUE), including datasets collected from real-world biomedical scenarios, baseline models,  and an online  platform for model evaluation, comparison and analysis.
 
 ## CBLUE Benchmark
