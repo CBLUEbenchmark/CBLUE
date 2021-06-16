@@ -503,17 +503,17 @@ class CDNDataProcessor(object):
                         orig_label_ids.append(label_)
                         cnt_label += 1
                     cur_idx += 1
-                cnt_label = 0
-                recall_label = np.random.permutation(recall_label[cur_idx:])
-                for label_ in recall_label:
-                    if cnt_label >= self.negative_sample:
-                        break
-                    if label_ not in orig_label_ids:
-                        outputs['text1'].append(text)
-                        outputs['text2'].append(self.id2label[label_])
-                        outputs['label'].append(0)
-                        orig_label_ids.append(label_)
-                        cnt_label += 1
+                # cnt_label = 0
+                # recall_label = np.random.permutation(recall_label[cur_idx:])
+                # for label_ in recall_label:
+                #     if cnt_label >= self.negative_sample:
+                #         break
+                #     if label_ not in orig_label_ids:
+                #         outputs['text1'].append(text)
+                #         outputs['text2'].append(self.id2label[label_])
+                #         outputs['label'].append(0)
+                #         orig_label_ids.append(label_)
+                #         cnt_label += 1
 
             self._save_cache(outputs, recall_orig_samples, mode='train')
 
@@ -546,17 +546,17 @@ class CDNDataProcessor(object):
                         cnt_label += 1
                     cur_idx += 1
 
-                cnt_label = 0
-                recall_label = np.random.permutation(recall_label[cur_idx:])
-                for label_ in recall_label:
-                    if cnt_label >= self.negative_sample:
-                        break
-                    if label_ not in orig_label_ids:
-                        outputs['text1'].append(text)
-                        outputs['text2'].append(self.id2label[label_])
-                        outputs['label'].append(0)
-                        orig_label_ids.append(label_)
-                        cnt_label += 1
+                # cnt_label = 0
+                # recall_label = np.random.permutation(recall_label[cur_idx:])
+                # for label_ in recall_label:
+                #     if cnt_label >= self.negative_sample:
+                #         break
+                #     if label_ not in orig_label_ids:
+                #         outputs['text1'].append(text)
+                #         outputs['text2'].append(self.id2label[label_])
+                #         outputs['label'].append(0)
+                #         orig_label_ids.append(label_)
+                #         cnt_label += 1
 
             self._save_cache(outputs, recall_orig_samples, mode='eval')
 

@@ -675,3 +675,14 @@ from cblue.metrics import er_metric, er_commit_prediction, re_metric, re_commit_
 | macbert-base          |   3   |     16     |     30     |     2e-5      |
 | macbert-large         |   3   |     16     |     30     |     2e-5      |
 | PCL-MedBERT           |   3   |     16     |     30     |     2e-5      |
+
+
+
+## References
+
+[1] CLUE: A Chinese Language Understanding Evaluation Benchmark [[pdf]](https://arxiv.org/abs/2004.05986) [[git]](https://github.com/CLUEbenchmark/CLUE) [[web]](http://www.cluebenchmarks.com/)
+
+[2] GLUE: A Multi-Task Benchmark and Analysis Platform for Natural Language Understanding [[pdf]](https://openreview.net/pdf?id=rJ4km2R5t7) [[web]](https://gluebenchmark.com/)
+
+[3] SuperGLUE: A Stickier Benchmark for General-Purpose Language Understanding Systems [[pdf]](https://w4ngatang.github.io/static/papers/superglue.pdf) [[web]](https://super.gluebenchmark.com/)
+
