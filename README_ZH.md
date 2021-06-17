@@ -676,7 +676,17 @@ from cblue.metrics import er_metric, er_commit_prediction, re_metric, re_commit_
 | macbert-large         |   3   |     16     |     30     |     2e-5      |
 | PCL-MedBERT           |   3   |     16     |     30     |     2e-5      |
 
+## How to Cite
 
+```bibtex
+@article{zhang2021cblue,
+  title={CBLUE: A Chinese Biomedical Language Understanding Evaluation Benchmark},
+  author={Zhang, Ningyu and Bi, Zhen and Liang, Xiaozhuan and Li, Lei and Chen, Xiang and Deng, Shumin and Li, Luoqiu and Xie, Xin and Ye, Hongbin and Shang, Xin and Yin, Kangping and Tan, Chuanqi and Xu Jian and Chen, Mosha and Huang, Fei and Si, Luo and Ni, Yuan and Xie, Guotong and Sui, Zhifang and Chang, Baobao and Zong, Hui and Yuan, Zheng and Li, Linfeng and Yan, Jun and Zan, Hongying and Zhang, Kunli and Chen, Huajun and Tang, Buzhou and Chen, Qingcai
+},
+  journal={arXiv preprint arXiv:2106.08087},
+  year={2021}
+}
+```
 
 ## References
 
