@@ -680,11 +680,10 @@ from cblue.metrics import er_metric, er_commit_prediction, re_metric, re_commit_
 
 ```bibtex
 @article{zhang2021cblue,
-  title={CBLUE: A Chinese Biomedical Language Understanding Evaluation Benchmark},
-  author={Zhang, Ningyu and Bi, Zhen and Liang, Xiaozhuan and Li, Lei and Chen, Xiang and Deng, Shumin and Li, Luoqiu and Xie, Xin and Ye, Hongbin and Shang, Xin and Yin, Kangping and Tan, Chuanqi and Xu Jian and Chen, Mosha and Huang, Fei and Si, Luo and Ni, Yuan and Xie, Guotong and Sui, Zhifang and Chang, Baobao and Zong, Hui and Yuan, Zheng and Li, Linfeng and Yan, Jun and Zan, Hongying and Zhang, Kunli and Chen, Huajun and Tang, Buzhou and Chen, Qingcai
-},
-  journal={arXiv preprint arXiv:2106.08087},
-  year={2021}
+title={CBLUE: A Chinese Biomedical Language Understanding Evaluation Benchmark},
+author={Ningyu Zhang and Zhen Bi and Xiaozhuan Liang and Lei Li and Xiang Chen and Shumin Deng and Luoqiu Li and Xin Xie and Hongbin Ye and Xin Shang and Kangping Yin and Chuanqi Tan and Jian Xu and Mosha Chen and Fei Huang and Luo Si and Yuan Ni and Guotong Xie and Zhifang Sui and Baobao Chang and Hui Zong and Zheng Yuan and Linfeng Li and Jun Yan and Hongying Zan and Kunli Zhang and Huajun Chen and Buzhou Tang and Qingcai Chen},
+journal={arXiv preprint arXiv:2106.08087},
+year={2021}
 }
 ```
 
