@@ -693,7 +693,7 @@ class CTCDataProcessor(object):
         samples = load_json(path)
         outputs = {'text': [], 'label': [], 'id': []}
         for sample in samples:
-            outputs['text'].append(sample['text'])
+            outputs['text'].append("\002".join([ t for t in list(sample["text"].lower())]))
             outputs['id'].append(sample['id'])
             if not is_predict:
                 outputs['label'].append(self.label2id[sample['label']])

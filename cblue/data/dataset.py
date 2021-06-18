@@ -267,26 +267,52 @@ class CTCDataset(Dataset):
             self,
             samples,
             data_processor,
-            mode='train'
+            tokenizer,
+            max_length=128,
+            mode='train',
+            model_type='bert',
+            ngram_dict=None
     ):
         super(CTCDataset, self).__init__()
 
-        self.texts = samples['text']
+        self.texts = [text.split("\002") for text in samples['text']]
         self.ids = samples['id']
 
         if mode != 'test':
             self.labels = samples['label']
         self.data_processor = data_processor
         self.mode = mode
+        self.ngram_dict = ngram_dict
+        self.max_length = max_length
+        self.tokenizer = tokenizer
+        self.model_type = model_type
 
     def __getitem__(self, idx):
         text = self.texts[idx]
+        if self.model_type == 'zen':
+            inputs = convert_examples_to_features(text1=text, ngram_dict=self.ngram_dict,
+                                                  tokenizer=self.tokenizer, max_seq_length=self.max_length)
+        else:
+            inputs = self.tokenizer.encode_plus(text, padding='max_length', max_length=self.max_length, truncation=True)
 
         if self.mode != 'test':
-            label = self.labels[idx]
-            return text, label
+            if self.model_type == 'zen':
+                return inputs['input_ids'], inputs['token_type_ids'], \
+                       inputs['attention_mask'], self.labels[idx], inputs['input_ngram_ids'], \
+                       inputs['ngram_attention_mask'], inputs['ngram_token_type_ids'], \
+                       inputs['ngram_position_matrix']
+            else:
+                return np.array(inputs['input_ids']), np.array(inputs['token_type_ids']), \
+                    np.array(inputs['attention_mask']), self.labels[idx]
         else:
-            return text
+            if self.model_type == 'zen':
+                return inputs['input_ids'], inputs['token_type_ids'], \
+                       inputs['attention_mask'], inputs['input_ngram_ids'], \
+                       inputs['ngram_attention_mask'], inputs['ngram_token_type_ids'], \
+                       inputs['ngram_position_matrix']
+            else:
+                return np.array(inputs['input_ids']), np.array(inputs['token_type_ids']), \
+                       np.array(inputs['attention_mask']),
 
     def __len__(self):
         return len(self.texts)

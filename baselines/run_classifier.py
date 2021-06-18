@@ -139,14 +139,14 @@ def main():
         train_samples = data_processor.get_train_sample()
         eval_samples = data_processor.get_dev_sample()
 
-        if args.task_name != 'ee':
-            train_dataset = dataset_class(train_samples, data_processor, mode='train')
-            eval_dataset = dataset_class(eval_samples, data_processor, mode='eval')
-        else:
+        if args.task_name == 'ee' or args.task_name == 'ctc':
             train_dataset = dataset_class(train_samples, data_processor, tokenizer, mode='train',
                                           model_type=args.model_type, ngram_dict=ngram_dict, max_length=args.max_length)
             eval_dataset = dataset_class(eval_samples, data_processor, tokenizer, mode='eval',
                                          model_type=args.model_type, ngram_dict=ngram_dict, max_length=args.max_length)
+        else:
+            train_dataset = dataset_class(train_samples, data_processor, mode='train')
+            eval_dataset = dataset_class(eval_samples, data_processor, mode='eval')
 
         model = model_class.from_pretrained(os.path.join(args.model_dir, args.model_name),
                                             num_labels=data_processor.num_labels)
@@ -167,12 +167,12 @@ def main():
         data_processor = data_processor_class(root=args.data_dir)
         test_samples = data_processor.get_test_sample()
 
-        if args.task_name != 'ee':
-            test_dataset = dataset_class(test_samples, data_processor, mode='test')
-        else:
+        if args.task_name == 'ee' or args.task_name == 'ctc':
             test_dataset = dataset_class(test_samples, data_processor, tokenizer, mode='test', ngram_dict=ngram_dict,
                                          max_length=args.max_length, model_type=args.model_type)
-
+        else:
+            test_dataset = dataset_class(test_samples, data_processor, mode='test')
+            
         model = model_class.from_pretrained(args.output_dir, num_labels=data_processor.num_labels)
         trainer = trainer_class(args=args, model=model, data_processor=data_processor,
                                 tokenizer=tokenizer, logger=logger, model_class=model_class, ngram_dict=ngram_dict)

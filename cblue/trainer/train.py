@@ -1129,28 +1129,25 @@ class CTCTrainer(Trainer):
     def training_step(self, model, item):
         model.train()
 
-        text1 = item[0]
-        labels = item[1].to(self.args.device)
-        if self.args.model_type == 'zen':
-            inputs = convert_examples_to_features(text1=text1, ngram_dict=self.ngram_dict,
-                                                  tokenizer=self.tokenizer, max_seq_length=self.args.max_length,
-                                                  return_tensors=True)
-        else:
-            inputs = self.tokenizer(text1, padding='max_length', max_length=self.args.max_length,
-                                    truncation=True, return_tensors='pt')
+        input_ids = item[0].to(self.args.device)
+        token_type_ids = item[1].to(self.args.device)
+        attention_mask = item[2].to(self.args.device)
+        labels = item[3].to(self.args.device)
 
         if self.args.model_type == 'zen':
-            inputs['input_ngram_ids'] = inputs['input_ngram_ids'].to(self.args.device)
-            inputs['ngram_position_matrix'] = inputs['ngram_position_matrix'].to(self.args.device)
-            inputs['ngram_attention_mask'] = inputs['ngram_attention_mask'].to(self.args.device)
-            inputs['ngram_token_type_ids'] = inputs['ngram_token_type_ids'].to(self.args.device)
-
-        inputs['input_ids'] = inputs['input_ids'].to(self.args.device)
-        inputs['attention_mask'] = inputs['attention_mask'].to(self.args.device)
-        inputs['token_type_ids'] = inputs['token_type_ids'].to(self.args.device)
+            input_ngram_ids = item[4].to(self.args.device)
+            ngram_attention_mask = item[5].to(self.args.device)
+            ngram_token_type_ids = item[6].to(self.args.device)
+            ngram_position_matrix = item[7].to(self.args.device)
 
         # default using 'Transformers' library models.
-        outputs = model(labels=labels, **inputs)
+        if self.args.model_type == 'zen':
+            outputs = model(input_ids=input_ids, attention_mask=attention_mask, token_type_ids=token_type_ids,
+                            labels=labels, ngram_ids=input_ngram_ids, ngram_positions=ngram_position_matrix,
+                            ngram_attention_mask=ngram_attention_mask, ngram_token_type_ids=ngram_token_type_ids)
+        else:
+            outputs = model(labels=labels, input_ids=input_ids, token_type_ids=token_type_ids,
+                            attention_mask=attention_mask)
         loss = outputs[0]
         loss.backward()
 
@@ -1170,29 +1167,28 @@ class CTCTrainer(Trainer):
         for step, item in enumerate(eval_dataloader):
             model.eval()
 
-            text1 = item[0]
-            labels = item[1].to(args.device)
+            input_ids = item[0].to(self.args.device)
+            token_type_ids = item[1].to(self.args.device)
+            attention_mask = item[2].to(self.args.device)
+            labels = item[3].to(self.args.device)
 
-            if self.args.model_type == 'zen':
-                inputs = convert_examples_to_features(text1=text1, ngram_dict=self.ngram_dict,
-                                                      tokenizer=self.tokenizer, max_seq_length=self.args.max_length,
-                                                      return_tensors=True)
-            else:
-                inputs = self.tokenizer(text1, padding='max_length', max_length=self.args.max_length,
-                                        truncation=True, return_tensors='pt')
-
-            if self.args.model_type == 'zen':
-                inputs['input_ngram_ids'] = inputs['input_ngram_ids'].to(self.args.device)
-                inputs['ngram_position_matrix'] = inputs['ngram_position_matrix'].to(self.args.device)
-                inputs['ngram_attention_mask'] = inputs['ngram_attention_mask'].to(self.args.device)
-                inputs['ngram_token_type_ids'] = inputs['ngram_token_type_ids'].to(self.args.device)
-
-            inputs['input_ids'] = inputs['input_ids'].to(self.args.device)
-            inputs['attention_mask'] = inputs['attention_mask'].to(self.args.device)
-            inputs['token_type_ids'] = inputs['token_type_ids'].to(self.args.device)
+            if args.model_type == 'zen':
+                input_ngram_ids = item[4].to(self.args.device)
+                ngram_attention_mask = item[5].to(self.args.device)
+                ngram_token_type_ids = item[6].to(self.args.device)
+                ngram_position_matrix = item[7].to(self.args.device)
 
             with torch.no_grad():
-                outputs = model(labels=labels, **inputs)
+                if self.args.model_type == 'zen':
+                    outputs = model(input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask,
+                                    labels=labels, ngram_ids=input_ngram_ids,
+                                    ngram_positions=ngram_position_matrix,
+                                    ngram_token_type_ids=ngram_token_type_ids,
+                                    ngram_attention_mask=ngram_attention_mask)
+                else:
+                    outputs = model(labels=labels, input_ids=input_ids, token_type_ids=token_type_ids,
+                                    attention_mask=attention_mask)
+
                 loss, logits = outputs[:2]
 
             if preds is None:
@@ -1222,32 +1218,31 @@ class CTCTrainer(Trainer):
         for step, item in enumerate(test_dataloader):
             model.eval()
 
-            text1 = item
+            input_ids = item[0].to(self.args.device)
+            token_type_ids = item[1].to(self.args.device)
+            attention_mask = item[2].to(self.args.device)
 
-            if self.args.model_type == 'zen':
-                inputs = convert_examples_to_features(text1=text1, ngram_dict=self.ngram_dict,
-                                                      tokenizer=self.tokenizer, max_seq_length=self.args.max_length,
-                                                      return_tensors=True)
-            else:
-                inputs = self.tokenizer(text1, padding='max_length', max_length=self.args.max_length,
-                                        truncation=True, return_tensors='pt')
-
-            if self.args.model_type == 'zen':
-                inputs['input_ngram_ids'] = inputs['input_ngram_ids'].to(self.args.device)
-                inputs['ngram_position_matrix'] = inputs['ngram_position_matrix'].to(self.args.device)
-                inputs['ngram_attention_mask'] = inputs['ngram_attention_mask'].to(self.args.device)
-                inputs['ngram_token_type_ids'] = inputs['ngram_token_type_ids'].to(self.args.device)
-
-            inputs['input_ids'] = inputs['input_ids'].to(self.args.device)
-            inputs['attention_mask'] = inputs['attention_mask'].to(self.args.device)
-            inputs['token_type_ids'] = inputs['token_type_ids'].to(self.args.device)
+            if args.model_type == 'zen':
+                input_ngram_ids = item[3].to(self.args.device)
+                ngram_attention_mask = item[4].to(self.args.device)
+                ngram_token_type_ids = item[5].to(self.args.device)
+                ngram_position_matrix = item[6].to(self.args.device)
 
             with torch.no_grad():
-                outputs = model(**inputs)
-                if args.model_type == 'zen':
-                    logits = outputs
+                if self.args.model_type == 'zen':
+                    outputs = model(input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask,
+                                    ngram_ids=input_ngram_ids,
+                                    ngram_positions=ngram_position_matrix,
+                                    ngram_token_type_ids=ngram_token_type_ids,
+                                    ngram_attention_mask=ngram_attention_mask)
                 else:
-                    logits = outputs[0]
+                    outputs = model(input_ids=input_ids, token_type_ids=token_type_ids,
+                                    attention_mask=attention_mask)
+
+                if args.model_type == 'zen':
+                    logits = outputs.detach()
+                else:
+                    logits = outputs[0].detach()
 
             if preds is None:
                 preds = logits.detach().cpu().numpy()
