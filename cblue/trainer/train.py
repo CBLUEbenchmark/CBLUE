@@ -67,8 +67,8 @@ class Trainer(object):
         scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=num_warmup_steps,
                                                     num_training_steps=num_training_steps)
 
-        seed_everything(args.seed)
-        model.zero_grad()
+        # seed_everything(args.seed)
+        # model.zero_grad()
 
         logger.info("***** Running training *****")
         logger.info("Num samples %d", num_examples)
@@ -91,7 +91,8 @@ class Trainer(object):
 
                 optimizer.step()
                 scheduler.step()
-                model.zero_grad()
+                # model.zero_grad()
+                optimizer.zero_grad()
 
                 global_step += 1
 
