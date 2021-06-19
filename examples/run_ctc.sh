@@ -28,9 +28,10 @@ if [ $# == 0 ]; then
         --learning_rate=2e-5 \
         --epochs=5 \
         --warmup_proportion=0.1 \
-        --earlystop_patience=10 \
-        --logging_steps=200 \
-        --save_steps=200 \
+        --earlystop_patience=100 \
+        --max_grad_norm=0.0 \
+        --logging_steps=100 \
+        --save_steps=100 \
         --seed=1000
 elif [ $1 == "predict" ]; then
     python baselines/run_classifier.py \
