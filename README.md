@@ -569,8 +569,8 @@ Hyper-parameters for the training of pre-trained models with a sequence classifi
 | bert-base             |   5   |     32     |    128     |     5e-5      |
 | bert-wwm-ext          |   5   |     32     |    128     |     5e-5      |
 | roberta-wwm-ext       |   5   |     32     |    128     |     4e-5      |
-| roberta-wwm-ext-large |   5   |     20     |     50     |     3e-5      |
-| roberta-large         |   5   |     20     |     50     |     4e-5      |
+| roberta-wwm-ext-large |   5   |     32     |     50     |     3e-5      |
+| roberta-large         |   5   |     24     |     50     |     2e-5      |
 | albert-tiny           |  10   |     32     |    128     |     4e-5      |
 | albert-xxlarge        |   5   |     20     |     50     |     1e-5      |
 | zen                   |   5   |     20     |    128     |     4e-5      |
