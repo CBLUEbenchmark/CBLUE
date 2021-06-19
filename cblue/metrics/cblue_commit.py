@@ -70,7 +70,7 @@ def ctc_commit_prediction(dataset, preds, output_dir, id2label):
 
     pred_result = []
     for item in zip(ids, text1, label):
-        tmp_dict = {'id': item[0], 'text': item[1],
+        tmp_dict = {'id': item[0], 'text': "".join(item[1]),
                     'label': id2label[item[2]]}
         pred_result.append(tmp_dict)
     with open(os.path.join(output_dir, 'CHIP-CTC_test.json'), 'w', encoding='utf-8') as f:
