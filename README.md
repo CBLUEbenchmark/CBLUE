@@ -585,7 +585,7 @@ Hyper-parameters for the CHIP-CDN task. We model the CHIP-CDN task with two stag
 | Param               | Value |
 | ------------------- | ----- |
 | recall_k            | 200   |
-| num_negative_sample | 10    |
+| num_negative_sample | 5+5(random)    |
 
 Hyper-parameters for the training of pre-trained models with a sequence classifier for the ranking model of the CHIP-CDN task. We encode the pairs of the original term and standard phrase from candidates recalled during the recall stage and then pass the pooled output to the classifier, which predicts the relevance between the original term and standard phrase.
 
