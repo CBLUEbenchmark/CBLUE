@@ -66,9 +66,10 @@ class Trainer(object):
         optimizer = AdamW(optimizer_grouped_parameters, lr=args.learning_rate, eps=args.adam_epsilon)
         scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=num_warmup_steps,
                                                     num_training_steps=num_training_steps)
-
-        # seed_everything(args.seed)
-        # model.zero_grad()
+        
+        if args.task_name in ['qic', 'qqr', 'qtr', 'sts']:
+            seed_everything(args.seed)
+            model.zero_grad()
 
         logger.info("***** Running training *****")
         logger.info("Num samples %d", num_examples)
@@ -91,8 +92,10 @@ class Trainer(object):
 
                 optimizer.step()
                 scheduler.step()
-                # model.zero_grad()
-                optimizer.zero_grad()
+                if args.task_name in ['qic', 'qqr', 'qtr', 'sts']:
+                    model.zero_grad()
+                else:
+                    optimizer.zero_grad()
 
                 global_step += 1
 
