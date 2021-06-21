@@ -580,7 +580,7 @@ from cblue.metrics import er_metric, er_commit_prediction, re_metric, re_commit_
 | Param               | Value |
 | ------------------- | ----- |
 | recall_k            | 200   |
-| num_negative_sample | 10    |
+| num_negative_sample | 5+5(random)    |
 
 | Model                 | epoch | batch_size | max_length | learning_rate |
 | --------------------- | :---: | :--------: | :--------: | :-----------: |
