@@ -35,7 +35,8 @@ if [ $# == 0 ]; then
         --learning_rate=4e-5 \
         --epochs=3 \
         --warmup_proportion=0.1 \
-        --earlystop_patience=3 \
+        --earlystop_patience=100 \
+        --max_grad_norm=0.0 \
         --logging_steps=250 \
         --save_steps=250 \
         --seed=2021
