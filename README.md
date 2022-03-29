@@ -698,10 +698,10 @@ Hyper-parameters for the training of pre-trained models with a sequence classifi
 
 ```bibtex
 @article{zhang2021cblue,
-title={CBLUE: A Chinese Biomedical Language Understanding Evaluation Benchmark},
-author={Ningyu Zhang and Mosha Chen and Zhen Bi and Xiaozhuan Liang and Lei Li and Xin Shang and Kangping Yin and Chuanqi Tan and Jian Xu and Fei Huang and Luo Si and Yuan Ni and Guotong Xie and Zhifang Sui and Baobao Chang and Hui Zong and Zheng Yuan and Linfeng Li and Jun Yan and Hongying Zan and Kunli Zhang and Buzhou Tang and Qingcai Chen},
-journal={arXiv preprint arXiv:2106.08087},
-year={2021}
+  title={CBLUE: A Chinese Biomedical Language Understanding Evaluation Benchmark},
+  author={Zhang, Ningyu and Chen, Mosha and Bi, Zhen and Liang, Xiaozhuan and Li, Lei and Shang, Xin and Yin, Kangping and Tan, Chuanqi and Xu, Jian and Huang, Fei and others},
+  journal={arXiv preprint arXiv:2106.08087},
+  year={2021}
 }
 ```
 
