@@ -6,7 +6,7 @@
 [![GitHub stars](https://img.shields.io/github/stars/CBLUEbenchmark/CBLUE?style=flat-square)](https://github.com/CBLUEbenchmark/CBLUE/stargazers)
 ![](https://img.shields.io/badge/PRs-Welcome-red) 
 
-在医疗领域，人工智能开始发挥其作用，助力医疗技术水平提高。为了进一步促进AI+医疗的研究进展，我们发布了中文医学语言理解测评（CBLUE），包括数据集、基准模型、排行榜。
+在医疗领域，人工智能开始发挥其作用，助力医疗技术水平提高。为了进一步促进AI+医疗的研究进展，我们发布了[中文医学语言理解测评](https://arxiv.org/pdf/2106.08087.pdf)（CBLUE），包括数据集、基准模型、排行榜。
 
 ## 测评基准（CBLUE Benchmark）
 
