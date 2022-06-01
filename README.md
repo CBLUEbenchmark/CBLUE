@@ -697,11 +697,39 @@ Hyper-parameters for the training of pre-trained models with a sequence classifi
 ## How to Cite
 
 ```bibtex
-@article{zhang2021cblue,
-title={CBLUE: A Chinese Biomedical Language Understanding Evaluation Benchmark},
-author={Ningyu Zhang and Mosha Chen and Zhen Bi and Xiaozhuan Liang and Lei Li and Xin Shang and Kangping Yin and Chuanqi Tan and Jian Xu and Fei Huang and Luo Si and Yuan Ni and Guotong Xie and Zhifang Sui and Baobao Chang and Hui Zong and Zheng Yuan and Linfeng Li and Jun Yan and Hongying Zan and Kunli Zhang and Buzhou Tang and Qingcai Chen},
-journal={arXiv preprint arXiv:2106.08087},
-year={2021}
+@inproceedings{zhang-etal-2022-cblue,
+    title = "{CBLUE}: A {C}hinese Biomedical Language Understanding Evaluation Benchmark",
+    author = "Zhang, Ningyu  and
+      Chen, Mosha  and
+      Bi, Zhen  and
+      Liang, Xiaozhuan  and
+      Li, Lei  and
+      Shang, Xin  and
+      Yin, Kangping  and
+      Tan, Chuanqi  and
+      Xu, Jian  and
+      Huang, Fei  and
+      Si, Luo  and
+      Ni, Yuan  and
+      Xie, Guotong  and
+      Sui, Zhifang  and
+      Chang, Baobao  and
+      Zong, Hui  and
+      Yuan, Zheng  and
+      Li, Linfeng  and
+      Yan, Jun  and
+      Zan, Hongying  and
+      Zhang, Kunli  and
+      Tang, Buzhou  and
+      Chen, Qingcai",
+    booktitle = "Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers)",
+    month = may,
+    year = "2022",
+    address = "Dublin, Ireland",
+    publisher = "Association for Computational Linguistics",
+    url = "https://aclanthology.org/2022.acl-long.544",
+    pages = "7888--7915",
+    abstract = "Artificial Intelligence (AI), along with the recent progress in biomedical language understanding, is gradually offering great promise for medical practice. With the development of biomedical language understanding benchmarks, AI applications are widely used in the medical field. However, most benchmarks are limited to English, which makes it challenging to replicate many of the successes in English for other languages. To facilitate research in this direction, we collect real-world biomedical data and present the first Chinese Biomedical Language Understanding Evaluation (CBLUE) benchmark: a collection of natural language understanding tasks including named entity recognition, information extraction, clinical diagnosis normalization, single-sentence/sentence-pair classification, and an associated online platform for model evaluation, comparison, and analysis. To establish evaluation on these tasks, we report empirical results with the current 11 pre-trained Chinese models, and experimental results show that state-of-the-art neural models perform by far worse than the human ceiling.",
 }
 ```
 
