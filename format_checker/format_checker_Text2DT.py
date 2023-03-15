@@ -1,5 +1,6 @@
 import json
 import sys
+import datetime
 from format_checker import FormatChecker
 
 class Text2DT(FormatChecker):
@@ -14,6 +15,7 @@ class Text2DT(FormatChecker):
         return data
 
     def check_format(self, submission_filename):
+        EMPTY_DECISION_NODE = '{"role":"D","triples":[],"logical_rel":"null"}'
         with open(submission_filename) as input_file:
             json_content = json.load(input_file)
             for block in json_content:
@@ -24,6 +26,57 @@ class Text2DT(FormatChecker):
                     assert self.check_field_type(rule['triples'], list), '"triples" must be list, The defect record is "{}", and the defect rule is {}.'.format(text, rule)
                     assert rule['role'] in ['D', 'C'], '"role" must be "C" or "D". The defect record is "{}", and the defect rule is {}.'.format(text, rule)
                     assert self.check_predefined_list(rule['logical_rel']), '"logical_rel" must be in predefined list. The defect record is "{}", and the defect rule is {}.'.format(text, rule)
+                # check if it is a valid pre-order binary tree:
+                assert self._check_valid_preorder_tree(tree), 'A valid pre-order binary tree is not satisfied. Each leaf node must be a Decision node, and each Condition node must have two child nodes(left-child and right-child), and EMPTY Decision node "{}" is required if necessary. The defect record is "{}"'.format(EMPTY_DECISION_NODE, text)
+                #assert len(tree) % 2 == 1, 'A valid binary tree must contain odd nodes. The defect record is {}, nodes number is: {}'.format(text, len(tree))
+
+    def _check_valid_preorder_tree(self, tree):
+        nodelist = []
+        for i in range(len(tree)):
+            nodelist.append(tree[i]["role"])
+
+        # 将符合诊疗决策树的节点前序序列转化为代表诊疗决策树结构的节点矩阵，matrix[i][j]='F'/'L'/'R'表示第j个节点是第i个节点的父/左子/右子节点
+        node_matrix = [[0 for i in range(len(nodelist))] for j in range(len(nodelist))]
+
+        # If it is a valid pre-order tree, the parse process will succeed in a short time, and return True
+        # If it is running a long time, return as False
+        start_time = datetime.datetime.now()
+        while nodelist[0] != 'D':
+            for i in range(len(nodelist)):
+                if nodelist[i] == 'C':
+                    flag, leaf1, leaf2 = 0, 0, 0
+                    for j in range(i + 1, len(nodelist)):
+                        if nodelist[j] == 'D' and flag == 0:
+                            flag = 1
+                            leaf1 = j
+                        elif nodelist[j] == 'X':
+                            continue
+                        elif nodelist[j] == 'D' and flag == 1:
+                            # print(i)
+                            leaf2 = j
+                            nodelist[i] = 'D'
+                            node_matrix[leaf1][i] = 'F'
+                            node_matrix[leaf2][i] = 'F'
+                            node_matrix[i][leaf1] = 'L'
+                            node_matrix[i][leaf2] = 'R'
+                            for k in range(i + 1, leaf2 + 1):
+                                nodelist[k] = 'X'
+                            flag = 2
+                            break
+                        elif nodelist[j] == 'C':
+                            break
+                    if flag == 2:
+                        break
+
+            end_time = datetime.datetime.now()
+
+            # check program running time:
+            if (end_time - start_time).seconds > 1:
+                print(start_time, end_time)
+                return False
+
+        return True
+
 
 if __name__ == '__main__':
 
