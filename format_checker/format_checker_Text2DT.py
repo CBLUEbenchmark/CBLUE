@@ -24,6 +24,10 @@ class Text2DT(FormatChecker):
                 for rule in tree:
                     assert self.check_required_fields(rule), '{} are required. The defect record is "{}", and the defect rule is {}.'.format(self.required_field_list, text, rule)
                     assert self.check_field_type(rule['triples'], list), '"triples" must be list, The defect record is "{}", and the defect rule is {}.'.format(text, rule)
+                    for triple in rule['triples']:
+                        # (sub, rel, obj)
+                        triple_rel = triple[1]
+                        assert triple_rel in ['临床表现', '治疗药物', '用法用量', '治疗方案', '禁用药物', '基本情况'], '"triple" relation must be in predefined list. The defect record is "{}", and the defect rule is {}.'.format(text, rule)
                     assert rule['role'] in ['D', 'C'], '"role" must be "C" or "D". The defect record is "{}", and the defect rule is {}.'.format(text, rule)
                     assert self.check_predefined_list(rule['logical_rel']), '"logical_rel" must be in predefined list. The defect record is "{}", and the defect rule is {}.'.format(text, rule)
                 # check if it is a valid pre-order binary tree:
@@ -86,3 +90,4 @@ if __name__ == '__main__':
     checker.check_format(submission_filename)
 
     print("Format Check Success!")
+    
