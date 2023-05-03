@@ -1,6 +1,7 @@
 # format checker for CBLUE tasks:
 * CMeEE + CMeEE-V2: format_checker_CMeEE.py
 * CMeIE + CMeIE-V2: format_checker_CMeIE.py
+* CMedCausal: format_checker_CMedCausal.py
 * CHIP-CDEE: format_checker_CDEE.py 
 * CHIP-CDN: format_checker_CDN.py
 * CHIP-CTC: format_checker_CTC.py
@@ -60,4 +61,3 @@ If you want to implement the optional check login in the *check_format* function
 * MedDG: the dictionary file is *entity_list.txt*
 * IMCS-SR: the dictionary file is *symptom_norm.csv*
 * IMCS-V2-SR:  the dictionary file is *mappings.json*
-
